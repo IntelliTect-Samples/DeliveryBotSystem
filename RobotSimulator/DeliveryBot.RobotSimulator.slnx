@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeliveryBot.RobotSimulator.Api/DeliveryBot.RobotSimulator.Api.csproj" />
+    <Project Path="src/DeliveryBot.RobotSimulator.Core/DeliveryBot.RobotSimulator.Core.csproj" />
+    <Project Path="src/DeliveryBot.RobotSimulator.Events/DeliveryBot.RobotSimulator.Events.csproj" />
+    <Project Path="src/DeliveryBot.RobotSimulator.Infrastructure/DeliveryBot.RobotSimulator.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeliveryBot.RobotSimulator.Tests/DeliveryBot.RobotSimulator.Tests.csproj" />
+  </Folder>
+</Solution>
