@@ -3,6 +3,8 @@ name: Build and Deploy to Azure Container Apps
 on:
   push:
     branches: [main]
+    paths:
+      - "BotNetApi/**"
 
 # Required for OIDC federated identity authentication — no client secrets used
 permissions:
