@@ -1,0 +1,36 @@
+# ──────────────────────────────────────────────
+#  .NET / ASP.NET Core — BotNetApi
+# ──────────────────────────────────────────────
+
+# Build output
+bin/
+obj/
+
+# Published output
+publish/
+out/
+
+# NuGet packages (restored automatically, never committed)
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# User-specific Visual Studio files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Rider IDE
+.idea/
+
+# ──────────────────────────────────────────────
+#  Local environment / secrets
+# ──────────────────────────────────────────────
+
+# Keep production appsettings, ignore local overrides with real connection strings
+appsettings.Development.json
+secrets.json
+UserSecrets/

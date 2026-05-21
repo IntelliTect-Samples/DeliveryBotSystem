@@ -1,0 +1,31 @@
+# ──────────────────────────────────────────────
+#  Docker
+# ──────────────────────────────────────────────
+
+# Local override compose files
+docker-compose.override.yml
+
+# ──────────────────────────────────────────────
+#  Node / Frontend
+# ──────────────────────────────────────────────
+
+**/node_modules/
+**/dist/
+**/build/
+.next/
+.nuxt/
+.output/
+
+# ──────────────────────────────────────────────
+#  OS / Editor noise
+# ──────────────────────────────────────────────
+
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# VS Code workspace settings (keep launch/tasks, ignore local overrides)
+.vscode/settings.json
+.vscode/*.code-workspace
