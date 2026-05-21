@@ -23,19 +23,6 @@ public class BotsController : ControllerBase
         return Ok(bots);
     }
 
-    // GET /api/bots/findNearest?latitude=47.66&longitude=-117.43
-    // Declared before {id:int} — prevents any potential route ambiguity
-    [HttpGet("findNearest")]
-    public async Task<IActionResult> FindNearest([FromQuery] double latitude, [FromQuery] double longitude)
-    {
-        var bot = await _botService.FindNearestAvailableAsync(latitude, longitude);
-
-        if (bot is null)
-            return NotFound(new { message = "No available bots found near the specified location." });
-
-        return Ok(bot);
-    }
-
     // GET /api/bots/{id}
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
@@ -73,22 +60,6 @@ public class BotsController : ControllerBase
     public async Task<IActionResult> Recharge(int id)
     {
         var updated = await _botService.RechargeAsync(id);
-        return updated is null ? NotFound() : Ok(updated);
-    }
-
-    // PUT /api/bots/{id}/stock
-    [HttpPut("{id:int}/stock")]
-    public async Task<IActionResult> UpdateStock(int id, [FromBody] UpdateStockDto dto)
-    {
-        var updated = await _botService.UpdateStockAsync(id, dto);
-        return updated is null ? NotFound() : Ok(updated);
-    }
-
-    // PUT /api/bots/{id}/location
-    [HttpPut("{id:int}/location")]
-    public async Task<IActionResult> UpdateLocation(int id, [FromBody] UpdateLocationDto dto)
-    {
-        var updated = await _botService.UpdateLocationAsync(id, dto);
         return updated is null ? NotFound() : Ok(updated);
     }
 

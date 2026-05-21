@@ -12,10 +12,5 @@ public interface IBotService
 
     // Bot actions
     Task<BotResponseDto?> RechargeAsync(int id);
-    Task<BotResponseDto?> UpdateStockAsync(int id, UpdateStockDto dto);
-    Task<BotResponseDto?> UpdateLocationAsync(int id, UpdateLocationDto dto);
     Task<BotResponseDto?> UpdateServicingStatusAsync(int id, UpdateServicingStatusDto dto);
-
-    // Search
-    Task<BotResponseDto?> FindNearestAvailableAsync(double latitude, double longitude);
 }

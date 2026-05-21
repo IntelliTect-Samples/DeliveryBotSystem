@@ -1,0 +1,82 @@
+name: Build and Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+
+# Required for OIDC federated identity authentication — no client secrets used
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+
+  # ACR — pre-created, admin credentials stored as Container App registry secret
+  ACR_NAME: DeliverybotCR
+  ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
+
+  # Container App — pre-created with system-assigned managed identity
+  CONTAINER_APP_NAME: ewu-deliverybotsystem-api
+
+  # Azure SQL — pre-created; Container App MI already has db_owner in BotNetApiDb
+  SQL_SERVER_NAME: deliverybotsystem-sql
+  SQL_DB_NAME: BotNetApiDb
+
+  IMAGE_NAME: botnetapi
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # ── 1. Checkout source code ───────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Authenticate to Azure via OIDC federated identity ─────────────────
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── 3. Build Docker image and push to ACR ────────────────────────────────
+      - name: Log in to Azure Container Registry
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${{ github.sha }}"
+          echo "Building: $IMAGE_TAG"
+          docker build -t "$IMAGE_TAG" -f Dockerfile .
+          docker push "$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      # ── 4. Deploy to Container App ────────────────────────────────────────────
+      # EF Core migrations run automatically at startup via db.Database.Migrate().
+      # The Container App's managed identity already has db_owner on BotNetApiDb.
+      - name: Update Container App image and environment
+        run: |
+          SQL_CONN="Server=tcp:${SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${SQL_DB_NAME};Authentication=Active Directory Managed Identity;"
+
+          az containerapp update \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE_TAG" \
+            --set-env-vars \
+              "ASPNETCORE_ENVIRONMENT=Production" \
+              "ConnectionStrings__DefaultConnection=${SQL_CONN}"
+
+      # ── 5. Output the live deployment URL ─────────────────────────────────────
+      - name: Print deployment URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "========================================"
+          echo "  Deployment complete!"
+          echo "  App URL : https://${FQDN}"
+          echo "  Bots API: https://${FQDN}/api/bots"
+          echo "========================================"
