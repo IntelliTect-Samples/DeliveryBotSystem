@@ -1,0 +1,20 @@
+services:
+    robot-simulator:
+        build:
+            context: .
+            dockerfile: src/DeliveryBot.RobotSimulator.Api/Dockerfile
+        ports:
+            - "8080:8080"
+        environment:
+            ASPNETCORE_URLS: "http://+:8080"
+            ASPNETCORE_ENVIRONMENT: "Development"
+            EventTransport__Mode: "Local"
+            Simulator__InitialBotCount: "3"
+            Simulator__BotIdPrefix: "bot"
+            Simulator__DefaultBotModel: "DeliveryBot-V1"
+            Simulator__DefaultLatitude: "33.4255"
+            Simulator__DefaultLongitude: "-111.94"
+            Simulation__TickIntervalSeconds: "1"
+            Simulation__TelemetryIntervalSeconds: "5"
+            Simulation__DeliverySpeedMetersPerSecond: "8"
+            Simulation__DestinationArrivalThresholdMeters: "5"
