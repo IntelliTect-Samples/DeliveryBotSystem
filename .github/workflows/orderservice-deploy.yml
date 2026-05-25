@@ -1,0 +1,75 @@
+name: Build and Deploy Order Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "OrderService/**"
+
+# Required for OIDC federated identity — no client secrets stored
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  ACR_NAME: DeliverybotCR
+  ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
+  CONTAINER_APP_NAME: deliverybot-order-service
+  SQL_SERVER_NAME: deliverybotsystem-sql
+  SQL_DB_NAME: OrderServiceDb
+  IMAGE_NAME: orderservice
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Log into Azure using OIDC (no passwords — GitHub proves its identity via token)
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 3. Build and push the Docker image to the shared ACR
+      - name: Log in to Azure Container Registry
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${{ github.sha }}"
+          echo "Building: $IMAGE_TAG"
+          docker build -t "$IMAGE_TAG" -f OrderService/Dockerfile .
+          docker push "$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      # 4. Deploy the new image to Azure Container Apps
+      - name: Update Container App image
+        run: |
+          SQL_CONN="Server=tcp:${SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${SQL_DB_NAME};Authentication=Active Directory Managed Identity;"
+
+          az containerapp update \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE_TAG" \
+            --set-env-vars \
+              "ASPNETCORE_ENVIRONMENT=Production" \
+              "ConnectionStrings__DefaultConnection=${SQL_CONN}" \
+              "BotNetApi__BaseUrl=https://ewu-deliverybotsystem-api.<your-hash>.azurecontainerapps.io"
+
+      # 5. Print the live URL
+      - name: Print deployment URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "========================================"
+          echo "  Order Service live at: https://${FQDN}"
+          echo "  Place Order: POST https://${FQDN}/api/orders"
+          echo "========================================"
