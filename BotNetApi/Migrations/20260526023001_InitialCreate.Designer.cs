@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BotNetApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260521221353_RemoveSeedData")]
-    partial class RemoveSeedData
+    [Migration("20260526023001_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
