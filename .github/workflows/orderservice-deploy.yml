@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - "OrderService/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "OrderService/**"
   workflow_dispatch:
 
 # Required for OIDC federated identity — no client secrets stored
