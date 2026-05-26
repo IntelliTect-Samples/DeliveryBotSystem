@@ -4,4 +4,5 @@ Autonomous "food" delivery robots deliver refreshments to patrons wherever they 
 
 This repo includes all solution components including the robot software, web applications, backend services and infrastructure as code.
 
-![Delivvery Bot](./frontend/public/hero.png)
+![Delivvery Bot](./frontend/customer-webapp/public/hero.png)
+
