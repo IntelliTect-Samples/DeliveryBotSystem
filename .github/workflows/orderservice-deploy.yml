@@ -2,10 +2,9 @@ name: Build and Deploy Order Service
 
 on:
   push:
-    branches: [main, order-service]
+    branches: [main]
     paths:
       - "OrderService/**"
-  workflow_dispatch:
 
 # Required for OIDC federated identity — no client secrets stored
 permissions:
