@@ -1,0 +1,57 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Iac/**"
+
+# Required for OIDC federated identity authentication — no client secrets used
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: Iac
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Authenticate to Azure via OIDC ────────────────────────────────────
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Set up Terraform ──────────────────────────────────────────────────
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6"
+
+      # ── Init — connect to azurerm backend in dbstfstate01 ─────────────────
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      # ── Validate ──────────────────────────────────────────────────────────
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      # ── Apply ─────────────────────────────────────────────────────────────
+      # Sensitive variables are passed as TF_VAR_* environment variables so
+      # they never appear in the plan output or logs.
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          TF_VAR_eventhub_connection_string: ${{ secrets.EVENTHUB_CONNECTION_STRING }}
+          TF_VAR_bot_api_sql_connection_string: ${{ secrets.BOT_API_SQL_CONNECTION_STRING }}
+        run: terraform apply -auto-approve
