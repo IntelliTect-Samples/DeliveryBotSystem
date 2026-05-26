@@ -2,7 +2,7 @@ name: Build and Deploy Order Service
 
 on:
   push:
-    branches: [main]
+    branches: [main, order-service]
     paths:
       - "OrderService/**"
   workflow_dispatch:
