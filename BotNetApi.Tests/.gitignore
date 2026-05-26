@@ -1,0 +1,18 @@
+# ──────────────────────────────────────────────
+#  .NET — BotNetApi.Tests
+# ──────────────────────────────────────────────
+
+# Build output
+bin/
+obj/
+
+# Test results
+TestResults/
+*.trx
+*.xml
+
+# Coverage
+coverage/
+*.coverage
+*.coveragexml
+lcov.info

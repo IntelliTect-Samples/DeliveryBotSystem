@@ -18,7 +18,16 @@ builder.Services.AddControllers()
 
 // ── Swagger / OpenAPI ──────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new()
+    {
+        Title = "BotNetApi",
+        Version = "v1",
+        Description = "Backend API for the vending machine bot delivery network. " +
+                      "Manages bot status, battery levels, and availability."
+    });
+});
 
 var app = builder.Build();
 
@@ -43,7 +52,11 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "BotNetApi v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseHttpsRedirection();
