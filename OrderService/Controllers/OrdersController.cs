@@ -15,7 +15,7 @@ public class OrdersController : ControllerBase
         _orderService = orderService;
     }
 
-    // POST /api/orders
+    // POST /api/orders — called by the customer web app when the order form is submitted
     [HttpPost]
     public async Task<IActionResult> PlaceOrder([FromBody] PlaceOrderDto dto)
     {
@@ -23,7 +23,7 @@ public class OrdersController : ControllerBase
         return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
     }
 
-    // GET /api/orders/{id}
+    // GET /api/orders/{id} — customer checks their order status by order ID
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetOrder(Guid id)
     {
@@ -31,7 +31,7 @@ public class OrdersController : ControllerBase
         return order is null ? NotFound() : Ok(order);
     }
 
-    // GET /api/orders?customerId=xxx
+    // GET /api/orders?customerId=xxx — returns full order history for a customer
     [HttpGet]
     public async Task<IActionResult> GetOrderHistory([FromQuery] string customerId)
     {

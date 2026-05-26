@@ -5,12 +5,14 @@ using OrderService.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Database ───────────────────────────────────────────────────────────────────
+// Uses Managed Identity in Azure — no password needed
 builder.Services.AddDbContext<OrderDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ── Services ───────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IOrderService, OrderService.Services.OrderService>();
 builder.Services.AddHttpClient();
+// Nominatim requires a User-Agent header or it rejects requests
 builder.Services.AddHttpClient("Nominatim", client =>
 {
     client.DefaultRequestHeaders.UserAgent.ParseAdd("DeliveryBotSystem/1.0");
