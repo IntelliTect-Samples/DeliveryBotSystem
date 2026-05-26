@@ -7,7 +7,8 @@ name: AdminWebpage-Deploy-WF
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    # TODO: remove `admin-and-maintenance-app` before merging — only here for pre-merge deploy testing.
+    branches: [main, admin-and-maintenance-app]
     paths:
       - "admin-webapp/**"
       - "Iac/admin-webapp/**"
