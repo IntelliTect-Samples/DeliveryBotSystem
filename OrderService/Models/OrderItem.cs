@@ -1,5 +1,5 @@
 // Represents a single item within an order.
-// Linked to Order via OrderId foreign key — one order can have multiple items.
+// Linked to Order via OrderId foreign key. one order can have multiple items.
 using System.ComponentModel.DataAnnotations;
 
 namespace OrderService.Models;
