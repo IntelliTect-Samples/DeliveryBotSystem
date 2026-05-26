@@ -7,7 +7,10 @@ name: AdminWebpage-Deploy-WF
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    # TODO: drop `admin-and-maintenance-app` from this list before merging to main.
+    # It's only here so the workflow can be exercised end-to-end from the feature
+    # branch without merging first.
+    branches: [main, admin-and-maintenance-app]
     paths:
       - "admin-webapp/**"
       - "Iac/admin-webapp/**"
