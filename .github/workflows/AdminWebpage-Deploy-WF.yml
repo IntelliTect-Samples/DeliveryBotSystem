@@ -1,0 +1,117 @@
+name: AdminWebpage-Deploy-WF
+
+# Provisions the Admin Web App App Service via Terraform, then builds and
+# deploys the React SPA to it. Auth uses the same OIDC federated identity
+# Phil configured for the BotNet API workflow, so no new secrets are needed.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "admin-webapp/**"
+      - "Iac/admin-webapp/**"
+      - ".github/workflows/AdminWebpage-Deploy-WF.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  APP_SERVICE_NAME: WA-DeliveryBot-Admin-dev
+  TFSTATE_STORAGE_ACCOUNT: dbstfstate01
+  TFSTATE_CONTAINER: tfstate
+  BOTNET_API_URL: https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io
+  SIMULATOR_API_URL: https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io
+
+jobs:
+  provision-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 1. Authenticate to Azure via OIDC ────────────────────────────────
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── 2. Ensure the Terraform state container exists ────────────────────
+      # `az storage container create` is idempotent; safe to run every time.
+      - name: Ensure TF state container exists
+        run: |
+          az storage container create \
+            --name "$TFSTATE_CONTAINER" \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --auth-mode login \
+            --only-show-errors
+
+      # ── 3. Provision App Service via Terraform ────────────────────────────
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Terraform Init
+        working-directory: ./Iac/admin-webapp
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        working-directory: ./Iac/admin-webapp
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform apply -input=false -auto-approve
+
+      # ── 4. Build the SPA with upstream URLs baked in ──────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "npm"
+          cache-dependency-path: admin-webapp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./admin-webapp
+        run: npm install
+
+      - name: Run unit tests
+        working-directory: ./admin-webapp
+        run: npm test
+
+      - name: Build React app
+        working-directory: ./admin-webapp
+        env:
+          VITE_BOTNET_API_URL: ${{ env.BOTNET_API_URL }}
+          VITE_SIMULATOR_API_URL: ${{ env.SIMULATOR_API_URL }}
+        run: npm run build
+
+      # ── 5. Deploy the build to the App Service ────────────────────────────
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_SERVICE_NAME }}
+          package: ./admin-webapp/dist
+
+      - name: Print deployment URL
+        run: |
+          FQDN=$(az webapp show \
+            --name "$APP_SERVICE_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query defaultHostName -o tsv)
+          echo "========================================"
+          echo "  Admin Web App deployed!"
+          echo "  URL: https://${FQDN}"
+          echo "========================================"
