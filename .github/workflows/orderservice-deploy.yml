@@ -16,7 +16,7 @@ env:
   ACR_NAME: DeliverybotCR
   ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
   CONTAINER_APP_NAME: deliverybot-order-service
-  SQL_SERVER_NAME: deliverybotsystem-sql
+  SQL_SERVER_NAME: jacob-orderservice-sql2
   SQL_DB_NAME: OrderServiceDb
   IMAGE_NAME: orderservice
 
@@ -60,7 +60,7 @@ jobs:
             --set-env-vars \
               "ASPNETCORE_ENVIRONMENT=Production" \
               "ConnectionStrings__DefaultConnection=${SQL_CONN}" \
-              "BotNetApi__BaseUrl=https://ewu-deliverybotsystem-api.<your-hash>.azurecontainerapps.io"
+              "BotNetApi__BaseUrl=https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io"
 
       # 5. Print the live URL
       - name: Print deployment URL
