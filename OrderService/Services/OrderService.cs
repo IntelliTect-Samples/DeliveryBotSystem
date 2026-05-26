@@ -1,3 +1,6 @@
+// Core logic for the Order Service.
+// Handles: geocoding delivery addresses, selecting an available bot from BotNetApi,
+// saving orders to the database, and publishing order assignment events to Azure Event Hub.
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;

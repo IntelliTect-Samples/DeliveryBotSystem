@@ -1,3 +1,5 @@
+// Application startup — wires together the database, services, HTTP clients, and Swagger.
+// Runs EF Core migrations automatically on startup so tables are always up to date.
 using Microsoft.EntityFrameworkCore;
 using OrderService.Data;
 using OrderService.Services;

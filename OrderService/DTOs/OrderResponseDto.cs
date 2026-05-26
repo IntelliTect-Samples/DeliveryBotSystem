@@ -1,3 +1,5 @@
+// Defines the shape of the response sent back to the customer after placing an order.
+// Includes the order ID, assigned bot, status, and geocoded destination coordinates.
 namespace OrderService.DTOs;
 
 public class OrderResponseDto

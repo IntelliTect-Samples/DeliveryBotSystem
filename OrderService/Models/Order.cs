@@ -1,3 +1,5 @@
+// Represents a single order in the database.
+// One order can have many OrderItems (stored in a separate table).
 using System.ComponentModel.DataAnnotations;
 
 namespace OrderService.Models;

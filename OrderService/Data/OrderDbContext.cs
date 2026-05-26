@@ -1,3 +1,5 @@
+// Bridge between the Order Service and Azure SQL.
+// Tells EF Core what tables exist and how they relate to each other.
 using Microsoft.EntityFrameworkCore;
 using OrderService.Models;
 

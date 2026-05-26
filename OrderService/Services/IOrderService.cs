@@ -1,3 +1,5 @@
+// Defines the contract for the Order Service.
+// Any class implementing this interface must provide these three methods.
 using OrderService.DTOs;
 
 namespace OrderService.Services;

@@ -1,3 +1,5 @@
+// Defines the shape of the request body when a customer places an order.
+// Matches the fields in the customer web app order form.
 using System.ComponentModel.DataAnnotations;
 
 namespace OrderService.DTOs;

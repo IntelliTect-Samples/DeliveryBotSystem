@@ -1,3 +1,6 @@
+// Handles incoming HTTP requests for the Order Service.
+// Routes: POST /api/orders, GET /api/orders/{id}, GET /api/orders?customerId=
+// No business logic here — just receives requests and delegates to OrderService.
 using Microsoft.AspNetCore.Mvc;
 using OrderService.DTOs;
 using OrderService.Services;
