@@ -28,4 +28,10 @@ terraform {
 provider "azurerm" {
   features {}
   use_oidc = true
+
+  # The CI service principal has scoped roles (RG Contributor + Blob Data
+  # Contributor) but no subscription-level resource-provider registration
+  # rights. Microsoft.Web is already registered for the subscription, so skip
+  # the provider's default auto-registration to avoid a 403 on apply.
+  resource_provider_registrations = "none"
 }
