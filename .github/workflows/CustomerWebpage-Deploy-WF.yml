@@ -1,11 +1,26 @@
 name: CustomerWebpage-Deploy-WF
 
 on:
+  push:
+    branches:
+      - main
+      - customer-map
+    paths:
+      - "frontend/customer-webapp/**"
+      - ".github/workflows/CustomerWebpage-Deploy-WF.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-and-deploy:
+    name: Build and deploy customer web app
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/customer-webapp
 
     steps:
       - name: Checkout repository
@@ -15,18 +30,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+          cache: npm
+          cache-dependency-path: frontend/customer-webapp/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./frontend
-        run: npm install
+        run: npm ci
+
+      - name: Lint React app
+        run: npm run lint
 
       - name: Build React app
-        working-directory: ./frontend
         run: npm run build
+        env:
+          VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
+          VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'WA-DeliveryBot-dev'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1BA6A9C76C684517B5106BD8ACF4CE5B }}
-          package: ./frontend/dist
+          package: frontend/customer-webapp/dist
