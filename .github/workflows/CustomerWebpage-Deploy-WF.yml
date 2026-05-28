@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build-and-deploy:
@@ -42,9 +43,15 @@ jobs:
           VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
           VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: WA-DeliveryBot-dev
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1BA6A9C76C684517B5106BD8ACF4CE5B }}
           package: frontend/customer-webapp/dist
