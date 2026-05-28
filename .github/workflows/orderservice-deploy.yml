@@ -35,7 +35,7 @@ jobs:
 
       # 2. Run tests — pipeline fails here if any test fails
       - name: Run tests
-        run: dotnet test OrderService.Tests/OrderService.Tests.csproj --configuration Release --no-restore
+        run: dotnet test OrderService/OrderService.Tests/OrderService.Tests.csproj --configuration Release --no-restore
 
       # 3. Log into Azure using OIDC (no passwords — GitHub proves its identity via token)
       - name: Azure Login (OIDC)
@@ -53,7 +53,7 @@ jobs:
         run: |
           IMAGE_TAG="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${{ github.sha }}"
           echo "Building: $IMAGE_TAG"
-          docker build -t "$IMAGE_TAG" -f OrderService/Dockerfile .
+          docker build -t "$IMAGE_TAG" -f OrderService/OrderService/Dockerfile OrderService
           docker push "$IMAGE_TAG"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
