@@ -1,14 +1,24 @@
 name: Build and Deploy Order Service
 
+# Provisions the Order Service Container App via Terraform, then builds and
+# pushes the image and rolls it out. Auth uses the OIDC federated identity Phil
+# configured — no client secrets stored. Terraform owns the app's
+# infrastructure (identity, ACR-pull, ingress, env/secrets); this workflow owns
+# the image tag.
+
 on:
   push:
     branches: [main]
     paths:
       - "OrderService/**"
+      - "Iac/order-service/**"
+      - ".github/workflows/orderservice-deploy.yml"
   pull_request:
     branches: [main]
     paths:
       - "OrderService/**"
+      - "Iac/order-service/**"
+      - ".github/workflows/orderservice-deploy.yml"
   workflow_dispatch:
 
 # Required for OIDC federated identity — no client secrets stored
@@ -24,6 +34,8 @@ env:
   SQL_SERVER_NAME: jacob-orderservice-sql2
   SQL_DB_NAME: OrderServiceDb
   IMAGE_NAME: orderservice
+  TFSTATE_STORAGE_ACCOUNT: dbstfstate01
+  TFSTATE_CONTAINER: tfstate
 
 jobs:
   build-and-deploy:
@@ -35,7 +47,7 @@ jobs:
 
       # 2. Run tests — pipeline fails here if any test fails
       - name: Run tests
-        run: dotnet test OrderService/OrderService.Tests/OrderService.Tests.csproj --configuration Release --no-restore
+        run: dotnet test OrderService/OrderService.Tests/OrderService.Tests.csproj --configuration Release
 
       # 3. Log into Azure using OIDC (no passwords — GitHub proves its identity via token)
       - name: Azure Login (OIDC)
@@ -45,7 +57,44 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # 4. Build and push the Docker image to the shared ACR
+      # 4. Ensure the Terraform state container exists (idempotent)
+      - name: Ensure TF state container exists
+        run: |
+          az storage container create \
+            --name "$TFSTATE_CONTAINER" \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --auth-mode login \
+            --only-show-errors
+
+      # 5. Provision the Container App infrastructure via Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Terraform Init
+        working-directory: ./Iac/order-service
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_USE_AZUREAD: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        working-directory: ./Iac/order-service
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_USE_AZUREAD: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_sql_connection_string: "Server=tcp:${{ env.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${{ env.SQL_DB_NAME }};Authentication=Active Directory Managed Identity;"
+          TF_VAR_eventhub_connection_string: ${{ secrets.AZURE_EVENTHUB_CONNECTION_STRING }}
+        run: terraform apply -input=false -auto-approve
+
+      # 6. Build and push the Docker image to the shared ACR
       - name: Log in to Azure Container Registry
         run: az acr login --name "$ACR_NAME"
 
@@ -57,22 +106,16 @@ jobs:
           docker push "$IMAGE_TAG"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
-      # 5. Deploy the new image to Azure Container Apps
+      # 7. Roll out the new image. Env vars/secrets are owned by Terraform, so
+      #    this only updates the running image tag.
       - name: Update Container App image
         run: |
-          SQL_CONN="Server=tcp:${SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${SQL_DB_NAME};Authentication=Active Directory Managed Identity;"
-
           az containerapp update \
             --name "$CONTAINER_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --image "$IMAGE_TAG" \
-            --set-env-vars \
-              "ASPNETCORE_ENVIRONMENT=Production" \
-              "ConnectionStrings__DefaultConnection=${SQL_CONN}" \
-              "BotNetApi__BaseUrl=https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io" \
-              "EventHub__ConnectionString=${{ secrets.AZURE_EVENTHUB_CONNECTION_STRING }}"
+            --image "$IMAGE_TAG"
 
-      # 6. Print the live URL
+      # 8. Print the live URL
       - name: Print deployment URL
         run: |
           FQDN=$(az containerapp show \
