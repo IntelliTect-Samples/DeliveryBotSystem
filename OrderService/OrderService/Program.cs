@@ -47,11 +47,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger UI is enabled in all environments so the deployed API can be explored
+// from the browser at /swagger.
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.MapControllers();
