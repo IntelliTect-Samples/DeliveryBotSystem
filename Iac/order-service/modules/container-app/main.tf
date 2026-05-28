@@ -22,11 +22,14 @@ resource "azurerm_container_app" "this" {
   }
 
   # Caller-supplied secrets (e.g. SQL / Event Hub connection strings).
+  # Iterate the (non-sensitive) secret names and look up the sensitive values,
+  # so the sensitive map isn't used directly as a for_each argument — Terraform
+  # rejects that.
   dynamic "secret" {
-    for_each = var.secrets
+    for_each = nonsensitive(toset(keys(var.secrets)))
     content {
-      name  = secret.key
-      value = secret.value
+      name  = secret.value
+      value = var.secrets[secret.value]
     }
   }
 
