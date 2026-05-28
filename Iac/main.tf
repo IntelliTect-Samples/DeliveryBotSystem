@@ -1,332 +1,56 @@
-# ── Resource Group ─────────────────────────────────────────────────────────────
+# ── Shared Infrastructure ──────────────────────────────────────────────────────
 
-resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
-  location = var.location
+module "shared_infra" {
+  source                 = "./modules/shared-infra"
+  resource_group_name    = var.resource_group_name
+  location               = var.location
+  sql_location           = var.sql_location
+  sql_ad_admin_login     = var.sql_ad_admin_login
+  sql_ad_admin_object_id = var.sql_ad_admin_object_id
+  tenant_id              = var.tenant_id
 }
 
-# ── Azure Container Registry ───────────────────────────────────────────────────
+# ── App Modules ────────────────────────────────────────────────────────────────
 
-resource "azurerm_container_registry" "acr" {
-  name                = "DeliverybotCR"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  sku                 = "Standard"
-  admin_enabled       = true
+module "bot_api" {
+  source                        = "./modules/bot-api"
+  resource_group_name           = var.resource_group_name
+  container_app_environment_id  = module.shared_infra.container_app_environment_id
+  sql_server_id                 = module.shared_infra.sql_server_id
+  acr_login_server              = module.shared_infra.acr_login_server
+  acr_admin_username            = module.shared_infra.acr_admin_username
+  acr_admin_password            = module.shared_infra.acr_admin_password
+  bot_api_sql_connection_string = var.bot_api_sql_connection_string
 }
 
-# ── Log Analytics Workspace ────────────────────────────────────────────────────
-
-resource "azurerm_log_analytics_workspace" "logs" {
-  name                = "workspaceewudeliverybotsystemrg8609"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
+module "robot_simulator" {
+  source                       = "./modules/robot-simulator"
+  resource_group_name          = var.resource_group_name
+  container_app_environment_id = module.shared_infra.container_app_environment_id
+  acr_login_server             = module.shared_infra.acr_login_server
+  acr_admin_username           = module.shared_infra.acr_admin_username
+  acr_admin_password           = module.shared_infra.acr_admin_password
+  eventhub_connection_string   = var.eventhub_connection_string
+  robot_input_hub_name         = module.shared_infra.robot_input_hub_name
+  robot_output_hub_name        = module.shared_infra.robot_output_hub_name
 }
 
-# ── Event Hub Namespace ────────────────────────────────────────────────────────
-
-resource "azurerm_eventhub_namespace" "simulator" {
-  name                = "DeliverybotSimulator-EVHNS"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  sku                 = "Standard"
-  capacity            = 1
-  zone_redundant      = true
+module "order_service" {
+  source                       = "./modules/order-service"
+  resource_group_name          = var.resource_group_name
+  container_app_environment_id = module.shared_infra.container_app_environment_id
+  sql_server_id                = module.shared_infra.sql_server_id
 }
 
-resource "azurerm_eventhub" "robot_input" {
-  name              = "robot-input"
-  namespace_id      = azurerm_eventhub_namespace.simulator.id
-  partition_count   = 1
-  message_retention = 1
+module "frontend" {
+  source              = "./modules/frontend"
+  resource_group_name = var.resource_group_name
+  location            = var.location
 }
 
-resource "azurerm_eventhub" "robot_output" {
-  name              = "robot-output"
-  namespace_id      = azurerm_eventhub_namespace.simulator.id
-  partition_count   = 2
-  message_retention = 1
+module "admin_app" {
+  source              = "./modules/admin-app"
+  resource_group_name = var.resource_group_name
+  location            = var.location
 }
 
-# ── Container Apps Managed Environment ────────────────────────────────────────
-
-resource "azurerm_container_app_environment" "env" {
-  name                       = "managedEnvironment-ewudeliverybots-aa2f"
-  resource_group_name        = azurerm_resource_group.rg.name
-  location                   = azurerm_resource_group.rg.location
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
-}
-
-# ── SQL Server ─────────────────────────────────────────────────────────────────
-
-resource "azurerm_mssql_server" "sql" {
-  name                = "deliverybotsystem-sql"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = var.sql_location
-  version             = "12.0"
-
-  # Azure AD-only authentication — no SQL login allowed.
-  azuread_administrator {
-    login_username              = var.sql_ad_admin_login
-    object_id                   = var.sql_ad_admin_object_id
-    tenant_id                   = var.tenant_id
-    azuread_authentication_only = true
-  }
-}
-
-# Allow Azure services (e.g. Container Apps) to reach the SQL server.
-resource "azurerm_mssql_firewall_rule" "allow_azure_services" {
-  name             = "AllowAzureServices"
-  server_id        = azurerm_mssql_server.sql.id
-  start_ip_address = "0.0.0.0"
-  end_ip_address   = "0.0.0.0"
-}
-
-# ── SQL Databases ──────────────────────────────────────────────────────────────
-
-# Serverless — auto-pauses when idle, scales vCores on demand.
-resource "azurerm_mssql_database" "botnetapi_db" {
-  name      = "BotNetApiDb"
-  server_id = azurerm_mssql_server.sql.id
-  sku_name  = "GP_S_Gen5_2"
-
-  max_size_gb                 = 32
-  min_capacity                = 0.5
-  auto_pause_delay_in_minutes = 60
-  zone_redundant              = false
-}
-
-# Provisioned General Purpose — always-on for the order service.
-resource "azurerm_mssql_database" "order_service_db" {
-  name      = "OrderServiceDb"
-  server_id = azurerm_mssql_server.sql.id
-  sku_name  = "GP_Gen5_2"
-
-  max_size_gb = 2
-}
-
-# ── Container App: Bot API ─────────────────────────────────────────────────────
-
-resource "azurerm_container_app" "bot_api" {
-  name                         = "ewu-deliverybotsystem-api"
-  resource_group_name          = azurerm_resource_group.rg.name
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  revision_mode                = "Single"
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  # Pull images from ACR using admin credentials stored as a secret.
-  secret {
-    name  = "acr-password"
-    value = azurerm_container_registry.acr.admin_password
-  }
-
-  secret {
-    name  = "sql-connection-string"
-    value = var.bot_api_sql_connection_string
-  }
-
-  registry {
-    server               = azurerm_container_registry.acr.login_server
-    username             = azurerm_container_registry.acr.admin_username
-    password_secret_name = "acr-password"
-  }
-
-  ingress {
-    external_enabled = true
-    target_port      = 8080
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 3
-
-    container {
-      name   = "botnetapi"
-      image  = "${azurerm_container_registry.acr.login_server}/botnetapi:latest"
-      cpu    = 0.5
-      memory = "1Gi"
-
-      env {
-        name  = "ASPNETCORE_ENVIRONMENT"
-        value = "Production"
-      }
-
-      env {
-        name        = "ConnectionStrings__DefaultConnection"
-        secret_name = "sql-connection-string"
-      }
-    }
-  }
-}
-
-# ── Container App: Robot Simulator ────────────────────────────────────────────
-
-resource "azurerm_container_app" "robot_simulator" {
-  name                         = "deliverybot-robot-simulator"
-  resource_group_name          = azurerm_resource_group.rg.name
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  revision_mode                = "Single"
-
-  secret {
-    name  = "acr-password"
-    value = azurerm_container_registry.acr.admin_password
-  }
-
-  secret {
-    name  = "eventhub-connection-string"
-    value = var.eventhub_connection_string
-  }
-
-  registry {
-    server               = azurerm_container_registry.acr.login_server
-    username             = azurerm_container_registry.acr.admin_username
-    password_secret_name = "acr-password"
-  }
-
-  ingress {
-    external_enabled = true
-    target_port      = 8080
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 10
-
-    container {
-      name   = "robot-simulator"
-      image  = "${azurerm_container_registry.acr.login_server}/deliverybot-robot-simulator:v1"
-      cpu    = 0.5
-      memory = "1Gi"
-
-      env {
-        name  = "ASPNETCORE_ENVIRONMENT"
-        value = "Development"
-      }
-
-      env {
-        name  = "EventTransport__Mode"
-        value = "AzureEventHub"
-      }
-
-      env {
-        name  = "EventTransport__InputEventHubName"
-        value = azurerm_eventhub.robot_input.name
-      }
-
-      env {
-        name  = "EventTransport__OutputEventHubName"
-        value = azurerm_eventhub.robot_output.name
-      }
-
-      env {
-        name  = "EventTransport__ConsumerGroup"
-        value = "$Default"
-      }
-
-      env {
-        name  = "EventTransport__EnableInputConsumer"
-        value = "true"
-      }
-
-      env {
-        name        = "EventTransport__ConnectionString"
-        secret_name = "eventhub-connection-string"
-      }
-
-      env {
-        name  = "Simulator__InitialBotCount"
-        value = "3"
-      }
-
-      env {
-        name  = "Simulator__BotIdPrefix"
-        value = "bot"
-      }
-
-      env {
-        name  = "Simulator__DefaultBotModel"
-        value = "DeliveryBot-V1"
-      }
-
-      env {
-        name  = "Simulator__DefaultLatitude"
-        value = "47.65837359646208"
-      }
-
-      env {
-        name  = "Simulator__DefaultLongitude"
-        value = "-117.40215401730164"
-      }
-
-      env {
-        name  = "Simulation__TickIntervalSeconds"
-        value = "1"
-      }
-
-      env {
-        name  = "Simulation__TelemetryIntervalSeconds"
-        value = "5"
-      }
-
-      env {
-        name  = "Simulation__DeliverySpeedMetersPerSecond"
-        value = "8"
-      }
-
-      env {
-        name  = "Simulation__DestinationArrivalThresholdMeters"
-        value = "5"
-      }
-    }
-  }
-}
-
-# ── Container App: Order Service ───────────────────────────────────────────────
-
-resource "azurerm_container_app" "order_service" {
-  name                         = "deliverybot-order-service"
-  resource_group_name          = azurerm_resource_group.rg.name
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  revision_mode                = "Single"
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  ingress {
-    external_enabled = true
-    target_port      = 8080
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 10
-
-    container {
-      name   = "order-service"
-      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-      cpu    = 0.5
-      memory = "1Gi"
-    }
-  }
-}
