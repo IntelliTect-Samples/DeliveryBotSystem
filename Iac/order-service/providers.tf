@@ -28,4 +28,8 @@ terraform {
 provider "azurerm" {
   features {}
   use_oidc = true
+
+  # The CI service principal is scoped to the resource group and can't register
+  # subscription-level resource providers. They're already registered, so skip.
+  resource_provider_registrations = "none"
 }
