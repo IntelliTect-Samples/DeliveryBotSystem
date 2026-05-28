@@ -17,6 +17,10 @@ jobs:
   build-and-deploy:
     name: Build and deploy customer web app
     runs-on: ubuntu-latest
+    env:
+      AZURE_WEBAPP_NAME: WA-DeliveryBot-dev
+      AZURE_WEBAPP_PACKAGE_PATH: frontend/customer-webapp/dist
+      AZURE_WEBAPP_PUBLISH_PROFILE: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1BA6A9C76C684517B5106BD8ACF4CE5B || secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
     defaults:
       run:
@@ -45,9 +49,18 @@ jobs:
           VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
           VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
 
+      - name: Validate Azure publish profile
+        working-directory: .
+        run: |
+          if [ -z "$AZURE_WEBAPP_PUBLISH_PROFILE" ]; then
+            echo "Azure App Service publish profile secret is missing."
+            echo "Add either AZUREAPPSERVICE_PUBLISHPROFILE_1BA6A9C76C684517B5106BD8ACF4CE5B or AZURE_WEBAPP_PUBLISH_PROFILE as a GitHub Actions repository secret."
+            exit 1
+          fi
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'WA-DeliveryBot-dev'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1BA6A9C76C684517B5106BD8ACF4CE5B }}
-          package: frontend/customer-webapp/dist
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ env.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
