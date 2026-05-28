@@ -7,9 +7,7 @@ BotNetApi is the backend service for the vending machine bot delivery network.
 It acts as the central source of truth for:
 
 - Bot status
-- Bot locations
 - Battery levels
-- Inventory stock levels
 - Availability/service state
 
 Other systems in the project communicate with the bots exclusively through this API.
@@ -40,10 +38,8 @@ The bot simulators push updates into the API.
 
 The frontend pulls data from the API to display:
 
-- Bot locations
-- Availability
+- Bot availability
 - Battery status
-- Nearest bot results
 
 The frontend and simulators should NOT communicate directly with the database.
 
@@ -64,7 +60,13 @@ The frontend and simulators should NOT communicate directly with the database.
 /api/bots
 ```
 
-Example local development URL:
+Production base URL:
+
+```text
+https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io
+```
+
+Local development URL:
 
 ```text
 http://localhost:5021/api/bots
@@ -77,28 +79,20 @@ https://localhost:7260/api/bots  (HTTPS)
 
 ## CRUD
 
-| Method   | Route              | Description           |
-|----------|--------------------|------------------------|
-| `GET`    | `/api/bots`        | Return all bots        |
-| `GET`    | `/api/bots/{id}`   | Return a single bot    |
-| `POST`   | `/api/bots`        | Add a new bot          |
-| `PUT`    | `/api/bots/{id}`   | Full update of a bot   |
-| `DELETE` | `/api/bots/{id}`   | Remove a bot           |
+| Method   | Route            | Description          |
+| -------- | ---------------- | -------------------- |
+| `GET`    | `/api/bots`      | Return all bots      |
+| `GET`    | `/api/bots/{id}` | Return a single bot  |
+| `POST`   | `/api/bots`      | Add a new bot        |
+| `PUT`    | `/api/bots/{id}` | Full update of a bot |
+| `DELETE` | `/api/bots/{id}` | Remove a bot         |
 
 ## Bot Actions
 
-| Method | Route                             | Description           |
-|--------|-----------------------------------|-----------------------|
-| `PUT`  | `/api/bots/{id}/recharge`         | Set battery to 100    |
-| `PUT`  | `/api/bots/{id}/stock`            | Update stock level    |
-| `PUT`  | `/api/bots/{id}/location`         | Update GPS location   |
-| `PUT`  | `/api/bots/{id}/servicing-status` | Set servicing state   |
-
-## Search
-
-| Method | Route                                        | Description                |
-|--------|----------------------------------------------|----------------------------|
-| `GET`  | `/api/bots/findNearest?latitude=&longitude=` | Find nearest available bot |
+| Method | Route                             | Description         |
+| ------ | --------------------------------- | ------------------- |
+| `PUT`  | `/api/bots/{id}/recharge`         | Set battery to 100  |
+| `PUT`  | `/api/bots/{id}/servicing-status` | Set servicing state |
 
 ---
 
@@ -110,29 +104,10 @@ Each bot contains:
 | ------------------- | -------- | --------------------------------- |
 | id                  | int      | Unique bot identifier             |
 | name                | string   | Friendly bot name                 |
-| stockLevel          | enum     | High / Medium / Low               |
 | batteryLevel        | int      | 0–100                             |
-| latitude            | double   | Current GPS latitude              |
-| longitude           | double   | Current GPS longitude             |
 | lastUpdated         | datetime | Last update timestamp (UTC)       |
 | isOnline            | bool     | Whether the bot is online         |
 | isServicingCustomer | bool     | Whether the bot is currently busy |
-
----
-
-# Important System Rules
-
-## Availability Rules
-
-A bot is considered AVAILABLE only if:
-
-```text
-isOnline == true
-isServicingCustomer == false
-batteryLevel >= 15
-```
-
-The nearest-bot endpoint automatically filters out unavailable bots.
 
 ---
 
@@ -148,36 +123,12 @@ GET /api/bots
 
 Use for:
 
-- Map displays
 - Status dashboards
 - Admin pages
 
 ---
 
-## 2. Find Nearest Available Bot
-
-```http
-GET /api/bots/findNearest?latitude=47.6588&longitude=-117.4260
-```
-
-Use for:
-
-- User requests
-- "Find nearest vending bot" feature
-- Delivery assignment UI
-
-The API handles:
-
-- Distance calculation
-- Availability filtering
-- Ignoring busy bots
-- Ignoring low battery bots
-
-The frontend does NOT need to calculate nearest bots itself.
-
----
-
-## 3. Display Individual Bot Details
+## 2. Display Individual Bot Details
 
 ```http
 GET /api/bots/{id}
@@ -202,48 +153,27 @@ Example:
 ```json
 {
   "name": "BOT-ECHO",
-  "stockLevel": "High",
   "batteryLevel": 100,
-  "latitude": 47.6588,
-  "longitude": -117.426,
   "isOnline": true
 }
 ```
 
 > `isServicingCustomer` is omitted — new bots always start as not servicing a customer.
-> `stockLevel` accepts string values: `"High"`, `"Medium"`, or `"Low"`.
 
 ---
 
-## Update Location
+## Full Update
 
 ```http
-PUT /api/bots/12/location
+PUT /api/bots/12
 ```
 
 ```json
 {
-  "latitude": 47.6612,
-  "longitude": -117.431
-}
-```
-
-Expected usage:
-
-- Called frequently
-- Simulates movement around Spokane
-
----
-
-## Update Stock
-
-```http
-PUT /api/bots/12/stock
-```
-
-```json
-{
-  "stockLevel": "Medium"
+  "name": "BOT-ECHO",
+  "batteryLevel": 85,
+  "isOnline": true,
+  "isServicingCustomer": false
 }
 ```
 
@@ -283,8 +213,6 @@ When servicing is complete:
 }
 ```
 
-This directly affects nearest-bot selection.
-
 ---
 
 ## Delete Bot
@@ -299,45 +227,13 @@ Permanently removes a bot from the system. Use only when decommissioning a bot.
 
 ---
 
-# Nearest Bot Behavior
-
-The endpoint:
-
-```http
-GET /api/bots/findNearest
-```
-
-works as follows:
-
-1. Loads all bots
-2. Filters out:
-   - Offline bots
-   - Busy bots
-   - Bots under 15% battery
-3. Calculates geographic distance
-4. Sorts nearest-to-farthest
-5. Returns the first valid bot
-
-If no bots qualify:
-
-```http
-404 Not Found
-```
-
-or similar response.
-
----
-
 # Example Response
 
 ```json
 {
   "id": 4,
   "name": "Bot-4",
-  "stockLevel": "High",
   "batteryLevel": 82,
-  "latitude": 47.6592,
-  "longitude": -117.4235,
   "lastUpdated": "2026-05-17T18:12:55Z",
   "isOnline": true,
   "isServicingCustomer": false
@@ -352,7 +248,6 @@ or similar response.
 
 Recommended:
 
-- Location updates every few seconds
 - Battery updates periodically
 - Service state changes as needed
 
@@ -374,7 +269,7 @@ SignalR is intentionally NOT included yet to keep the project simple.
 
 Development:
 
-- SQL Server LocalDB or SQL Express
+- SQL Server LocalDB
 
 Production:
 
@@ -391,22 +286,9 @@ dotnet ef database update
 
 ---
 
-# Seed Data
-
-Four bots are seeded at real Spokane, WA coordinates on first run:
-
-| ID | Name        | Battery | Online | Servicing | Notes                                          |
-|----|-------------|---------|--------|-----------|------------------------------------------------|
-| 1  | BOT-ALPHA   | 92%     | Yes    | No        | Available                                      |
-| 2  | BOT-BRAVO   | 61%     | Yes    | Yes       | Skipped by `findNearest` — busy                |
-| 3  | BOT-CHARLIE | 8%      | No     | No        | Skipped by `findNearest` — offline + low battery |
-| 4  | BOT-DELTA   | 77%     | Yes    | No        | Available                                      |
-
----
-
 # Swagger Support
 
-Swagger UI will be available during development:
+Swagger UI is available during local development:
 
 ```text
 http://localhost:5021/swagger
@@ -427,7 +309,6 @@ Included:
 
 - CRUD operations
 - Bot status management
-- Nearest available bot lookup
 - EF Core persistence
 
 Not included yet:
@@ -440,16 +321,6 @@ Not included yet:
 - Bot routing/pathfinding
 - Reservations
 - Multi-city support
-
----
-
-# Assumptions
-
-- All bots operate within Spokane, Washington
-- GPS coordinates are trusted
-- Simulators are responsible for realistic movement
-- Frontend handles visualization only
-- API is the source of truth for availability
 
 ---
 
