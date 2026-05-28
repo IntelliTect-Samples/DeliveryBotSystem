@@ -1,56 +1,24 @@
-# Admin & Maintenance App — App Service definition.
+# Root configuration for the Admin & Maintenance App infrastructure.
 #
-# Reuses the existing resource group and App Service Plan that the team is
-# already paying for. Adds a single Linux Node 22 App Service configured to
-# serve a static SPA via pm2.
+# Composes the reusable ./modules/webapp module. Backend + provider config
+# live in providers.tf; inputs and their defaults live in variables.tf.
 
-data "azurerm_resource_group" "rg" {
-  name = var.resource_group_name
+module "admin_webapp" {
+  source = "./modules/webapp"
+
+  resource_group_name   = var.resource_group_name
+  app_service_plan_name = var.app_service_plan_name
+  app_service_name      = var.app_service_name
+  node_version          = var.node_version
+  botnet_api_url        = var.botnet_api_url
+  simulator_api_url     = var.simulator_api_url
+  tags                  = var.tags
 }
 
-data "azurerm_service_plan" "plan" {
-  name                = var.app_service_plan_name
-  resource_group_name = data.azurerm_resource_group.rg.name
-}
-
-resource "azurerm_linux_web_app" "admin" {
-  name                = var.app_service_name
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_service_plan.plan.location
-  service_plan_id     = data.azurerm_service_plan.plan.id
-  https_only          = true
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  site_config {
-    always_on        = false
-    app_command_line = "pm2 serve /home/site/wwwroot --no-daemon --spa"
-
-    application_stack {
-      node_version = var.node_version
-    }
-
-    # Allow the GitHub Actions workflow to push builds.
-    scm_use_main_ip_restriction = true
-  }
-
-  # Build-time URLs are baked into the SPA bundle, so these app settings
-  # exist mainly as a record of which upstreams this deployment talks to.
-  # If the SPA gains a runtime config layer, switch to reading these.
-  app_settings = {
-    "WEBSITE_NODE_DEFAULT_VERSION" = "~22"
-    "BOTNET_API_URL"               = var.botnet_api_url
-    "SIMULATOR_API_URL"            = var.simulator_api_url
-  }
-
-  tags = var.tags
-
-  lifecycle {
-    ignore_changes = [
-      # Deployments overwrite the build artifact; don't fight the workflow.
-      app_settings["WEBSITE_RUN_FROM_PACKAGE"],
-    ]
-  }
+# The App Service was originally declared at the root before the module
+# refactor. Tell Terraform it simply moved addresses so the existing live
+# resource is preserved instead of destroyed and recreated.
+moved {
+  from = azurerm_linux_web_app.admin
+  to   = module.admin_webapp.azurerm_linux_web_app.admin
 }

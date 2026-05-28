@@ -2,11 +2,30 @@
 
 Provisions the Azure App Service that hosts the [Admin & Maintenance App](../../admin-webapp/) (issue #18).
 
+## Structure
+
+Per the [project guidelines](../../docs/project-guidelines.md), the App Service is defined in a reusable module that the root config consumes.
+
+```
+Iac/admin-webapp/
+├── providers.tf          # terraform block, azurerm backend + provider (root only)
+├── main.tf               # calls module "admin_webapp"
+├── variables.tf          # root inputs + defaults
+├── outputs.tf            # re-exports the module's outputs
+└── modules/
+    └── webapp/           # reusable App Service module
+        ├── main.tf       # data sources (RG, plan) + azurerm_linux_web_app
+        ├── variables.tf  # module inputs
+        └── outputs.tf    # name, hostname, url
+```
+
+The root `main.tf` includes a `moved {}` block so the refactor into a module is a no-op against existing state (the live App Service is preserved, not recreated).
+
 ## What it creates
 
 | Resource | Notes |
 |---|---|
-| `azurerm_linux_web_app.admin` | `WA-DeliveryBot-Admin-dev`, Node 22 Linux, `pm2 serve` startup, System Assigned Managed Identity |
+| `module.admin_webapp.azurerm_linux_web_app.admin` | `WA-DeliveryBot-Admin-dev`, Node 22 Linux, `pm2 serve` startup, System Assigned Managed Identity |
 
 ## What it reuses (data sources, not managed)
 
