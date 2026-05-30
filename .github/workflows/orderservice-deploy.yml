@@ -1,0 +1,84 @@
+name: Build and Deploy Order Service
+
+# Builds the Order Service image and rolls it out to the Container App.
+# Infrastructure (the app itself, its env vars/secrets) is owned by the
+# separate orderservice-iac.yml pipeline — this workflow only ships the image.
+# The Container App must already exist (provisioned by the IaC pipeline).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "OrderService/**"
+      - ".github/workflows/orderservice-deploy.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "OrderService/**"
+      - ".github/workflows/orderservice-deploy.yml"
+  workflow_dispatch:
+
+# Required for OIDC federated identity — no client secrets stored
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  ACR_NAME: DeliverybotCR
+  ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
+  CONTAINER_APP_NAME: deliverybot-order-service
+  IMAGE_NAME: orderservice
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Run tests — pipeline fails here if any test fails
+      - name: Run tests
+        run: dotnet test OrderService/OrderService.Tests/OrderService.Tests.csproj --configuration Release
+
+      # 3. Log into Azure using OIDC (no passwords — GitHub proves its identity via token)
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 4. Build and push the Docker image to the shared ACR
+      - name: Log in to Azure Container Registry
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${{ github.sha }}"
+          echo "Building: $IMAGE_TAG"
+          docker build -t "$IMAGE_TAG" -f OrderService/OrderService/Dockerfile OrderService
+          docker push "$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      # 5. Roll out the new image. Env vars/secrets are owned by Terraform, so
+      #    this only updates the running image tag.
+      - name: Update Container App image
+        run: |
+          az containerapp update \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE_TAG"
+
+      # 6. Print the live URL
+      - name: Print deployment URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "========================================"
+          echo "  Order Service live at: https://${FQDN}"
+          echo "  Place Order: POST https://${FQDN}/api/orders"
+          echo "========================================"
