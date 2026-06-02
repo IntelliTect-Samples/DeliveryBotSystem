@@ -30,6 +30,17 @@ builder.Services.AddHostedService<EventHubOrderAssignmentWorker>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Allow the Admin & Maintenance App (issue #18) to call the simulator from the browser.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AdminApp", policy =>
+        policy.WithOrigins(
+                  "https://wa-deliverybot-admin-dev.azurewebsites.net", // deployed admin app
+                  "http://localhost:5173")                              // local Vite dev server
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 var fleet = app.Services.GetRequiredService<BotFleet>();
@@ -49,6 +60,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors("AdminApp");
 
 app.MapGet("/health", () => Results.Ok(new
 {
