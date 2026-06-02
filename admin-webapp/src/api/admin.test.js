@@ -5,6 +5,8 @@ vi.mock('./bots.js', () => ({
   updateBot: vi.fn(),
   deleteBot: vi.fn(),
   listBots: vi.fn(),
+  rechargeBot: vi.fn(),
+  updateServicingStatus: vi.fn(),
 }))
 
 vi.mock('./simulator.js', () => ({
@@ -127,6 +129,63 @@ describe('modifyBot (issue #50)', () => {
     })
 
     expect(sim.updateSimulatorBot).not.toHaveBeenCalled()
+    expect(result.simulator.skipped).toBe(true)
+  })
+})
+
+describe('rechargeBot (issue #51)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('recharges in BotNet, then sets the simulator powerLevel to 100', async () => {
+    bots.rechargeBot.mockResolvedValue({ source: 'api', data: { id: 5, batteryLevel: 100 } })
+    sim.updateSimulatorBot.mockResolvedValue({ ok: true, data: {} })
+
+    const result = await admin.rechargeBot(5, 'Bot-005')
+
+    expect(bots.rechargeBot).toHaveBeenCalledWith(5)
+    expect(sim.updateSimulatorBot).toHaveBeenCalledWith('bot-005', { powerLevel: 100 })
+    expect(result.botnet.data.batteryLevel).toBe(100)
+    expect(result.simulator.ok).toBe(true)
+  })
+
+  it('surfaces a simulator failure as a partial-failure result', async () => {
+    bots.rechargeBot.mockResolvedValue({ source: 'api', data: { id: 6 } })
+    sim.updateSimulatorBot.mockResolvedValue({ ok: false, error: '404 Not Found' })
+
+    const result = await admin.rechargeBot(6, 'Bot-006')
+
+    expect(result.simulator.ok).toBe(false)
+    expect(result.simulator.error).toContain('404')
+  })
+
+  it('does not call the simulator if BotNet recharge errored', async () => {
+    bots.rechargeBot.mockResolvedValue({ source: 'api', error: '404 Not Found' })
+
+    const result = await admin.rechargeBot(99, 'ghost')
+
+    expect(sim.updateSimulatorBot).not.toHaveBeenCalled()
+    expect(result.simulator).toBeNull()
+  })
+})
+
+describe('setServicingStatus (issue #51)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('writes to BotNet and skips the simulator (no settable status field)', async () => {
+    bots.updateServicingStatus.mockResolvedValue({
+      source: 'api',
+      data: { id: 5, isServicingCustomer: true },
+    })
+
+    const result = await admin.setServicingStatus(5, true)
+
+    expect(bots.updateServicingStatus).toHaveBeenCalledWith(5, true)
+    expect(sim.updateSimulatorBot).not.toHaveBeenCalled()
+    expect(result.botnet.data.isServicingCustomer).toBe(true)
     expect(result.simulator.skipped).toBe(true)
   })
 })
