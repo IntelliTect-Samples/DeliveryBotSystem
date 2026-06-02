@@ -29,6 +29,18 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// ── CORS ─────────────────────────────────────────────────────────────────────
+// Allow the Admin & Maintenance App (issue #18) to call this API from the browser.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AdminApp", policy =>
+        policy.WithOrigins(
+                  "https://wa-deliverybot-admin-dev.azurewebsites.net", // deployed admin app
+                  "http://localhost:5173")                              // local Vite dev server
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 // ── Apply EF Core migrations on startup ───────────────────────────────────────
@@ -60,6 +72,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AdminApp");
 app.MapControllers();
 
 app.Run();
