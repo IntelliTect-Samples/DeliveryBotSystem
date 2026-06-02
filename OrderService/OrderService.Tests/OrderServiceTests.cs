@@ -36,7 +36,7 @@ public sealed class OrderServiceTests
         return (new Services.OrderService(db, factory, config, logger), db);
     }
 
-    private static PlaceOrderDto MakeOrder(string orderType = "Food Order") => new()
+    private static PlaceOrderDto MakeOrder(string orderType = "water") => new()
     {
         CustomerName = "Jane",
         Phone = "555-1234",
@@ -71,42 +71,31 @@ public sealed class OrderServiceTests
             : BotListJson(botAvailable);
     }
 
-    // ── MapOrderTypeToItems tests (verified through PlaceOrderAsync result) ────
+    // ── MapOrderTypeToItems tests — items mirror the simulator catalog ─────────
+    // (water/soda/chips/sandwich; verified through PlaceOrderAsync result)
 
-    [Fact]
-    public async Task PlaceOrder_FoodOrder_CreatesFoodItem()
+    [Theory]
+    [InlineData("water", "water")]
+    [InlineData("soda", "soda")]
+    [InlineData("chips", "chips")]
+    [InlineData("sandwich", "sandwich")]
+    [InlineData("Sandwich", "sandwich")] // display-name / casing tolerated
+    public async Task PlaceOrder_MapsCatalogItem(string orderType, string expectedItemId)
     {
         var (svc, _) = CreateService(_ => Json("[]"), Config(botUrl: ""));
-        var result = await svc.PlaceOrderAsync(MakeOrder("Food Order"));
+        var result = await svc.PlaceOrderAsync(MakeOrder(orderType));
 
-        Assert.Contains(result.Items, i => i.ItemId == "food");
+        Assert.Contains(result.Items, i => i.ItemId == expectedItemId);
     }
 
     [Fact]
-    public async Task PlaceOrder_BeverageOrder_CreatesBeverageItem()
-    {
-        var (svc, _) = CreateService(_ => Json("[]"), Config(botUrl: ""));
-        var result = await svc.PlaceOrderAsync(MakeOrder("Beverage Order"));
-
-        Assert.Contains(result.Items, i => i.ItemId == "beverage");
-    }
-
-    [Fact]
-    public async Task PlaceOrder_SmallPackage_CreatesPackageItem()
-    {
-        var (svc, _) = CreateService(_ => Json("[]"), Config(botUrl: ""));
-        var result = await svc.PlaceOrderAsync(MakeOrder("Small Package"));
-
-        Assert.Contains(result.Items, i => i.ItemId == "package");
-    }
-
-    [Fact]
-    public async Task PlaceOrder_UnknownOrderType_DefaultsToFoodItem()
+    public async Task PlaceOrder_UnknownOrderType_DefaultsToWater()
     {
         var (svc, _) = CreateService(_ => Json("[]"), Config(botUrl: ""));
         var result = await svc.PlaceOrderAsync(MakeOrder("Mystery Order"));
 
-        Assert.Contains(result.Items, i => i.ItemId == "food");
+        // Falls back to water, which bots always stock, so the order isn't rejected.
+        Assert.Contains(result.Items, i => i.ItemId == "water");
     }
 
     // ── Bot selection / order status tests ────────────────────────────────────

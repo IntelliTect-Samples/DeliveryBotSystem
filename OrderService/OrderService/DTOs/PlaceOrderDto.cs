@@ -17,8 +17,10 @@ public class PlaceOrderDto
     [Required]
     public string DeliveryAddress { get; set; } = string.Empty;
 
+    // The catalog item being ordered — mirrors the simulator's bot stock:
+    // water | soda | chips | sandwich (item id or display name, case-insensitive).
     [Required]
-    public string OrderType { get; set; } = "Food Order";
+    public string OrderType { get; set; } = "water";
 
     public string DeliveryNotes { get; set; } = string.Empty;
 }
