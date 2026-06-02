@@ -1,0 +1,123 @@
+name: Infrastructure — Apply All Services
+
+# Single IaC workflow for the entire DeliveryBot platform.
+# Implements the layered module pattern: Iac/main.tf composes all per-service
+# modules (shared-infra, admin-webapp, order-service, bot-api, frontend,
+# simulator) into one unified plan + apply.
+#
+# Strategy:
+#   - pull_request  → plan only (lets reviewers see the diff before merge)
+#   - push to main  → plan + apply
+#
+# Auth: OIDC federated identity — no client secrets stored in GitHub.
+# State: single state file "deliverybot.tfstate" in dbstfstate01/tfstate.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Iac/**"
+      - ".github/workflows/iac.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Iac/**"
+      - ".github/workflows/iac.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TFSTATE_STORAGE_ACCOUNT: dbstfstate01
+  TFSTATE_CONTAINER: tfstate
+
+jobs:
+  terraform:
+    name: Terraform Plan / Apply
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Iac
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Sensitive variable injection ─────────────────────────────────────
+      # Connection strings and secrets are injected as TF_VAR_* so they never
+      # appear in .tf files or terraform.tfvars.
+
+      # Order Service — uses Managed Identity; the string contains no password.
+      TF_VAR_order_service_sql_connection_string: "Server=tcp:jacob-orderservice-sql2.database.windows.net,1433;Initial Catalog=OrderServiceDb;Authentication=Active Directory Managed Identity;"
+
+      # Bot API — uses Managed Identity; the string contains no password.
+      TF_VAR_bot_api_sql_connection_string: "Server=tcp:deliverybotsystem-sql.database.windows.net,1433;Initial Catalog=BotNetApiDb;Authentication=Active Directory Managed Identity;"
+
+      # Event Hub — shared by Order Service and Robot Simulator.
+      TF_VAR_eventhub_connection_string: ${{ secrets.AZURE_EVENTHUB_CONNECTION_STRING }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Idempotent — creates the container if it doesn't already exist.
+      - name: Ensure TF state container exists
+        run: |
+          az storage container create \
+            --name "$TFSTATE_CONTAINER" \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --auth-mode login \
+            --only-show-errors
+
+      # ── One-time state decommission ───────────────────────────────────────
+      # This repo previously used six isolated per-service Terraform stacks,
+      # each writing to its own *.tfstate blob. Those blobs are now orphaned
+      # (the unified root uses deliverybot.tfstate). Delete them so no one
+      # accidentally runs terraform against stale state.
+      #
+      # `az storage blob delete` is a no-op when the blob doesn't exist, so
+      # this step is safe to leave in permanently.
+      - name: Remove orphaned per-service state blobs
+        run: |
+          for key in \
+            admin-webapp.tfstate \
+            order-service.tfstate \
+            bot-api.tfstate \
+            frontend.tfstate \
+            shared-infra.tfstate \
+            simulator.tfstate; do
+            az storage blob delete \
+              --container-name "$TFSTATE_CONTAINER" \
+              --name "$key" \
+              --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+              --auth-mode login \
+              --only-show-errors \
+              2>/dev/null || true
+          done
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+
+      # Apply only on merge to main — PRs stop at plan for review.
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -input=false tfplan
