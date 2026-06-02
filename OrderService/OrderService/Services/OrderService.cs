@@ -88,6 +88,17 @@ public class OrderService : IOrderService
         return orders.Select(ToResponseDto);
     }
 
+    // Returns every order, newest first. Backs the admin Orders view (issue #53).
+    public async Task<IEnumerable<OrderResponseDto>> GetAllOrdersAsync()
+    {
+        var orders = await _db.Orders
+            .Include(o => o.Items)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync();
+
+        return orders.Select(ToResponseDto);
+    }
+
     // Calls OpenStreetMap Nominatim to convert a text address to GPS coordinates.
     // Falls back to downtown Spokane if geocoding fails so orders still go through.
     private async Task<(double Latitude, double Longitude)> GeocodeAddressAsync(string address)
