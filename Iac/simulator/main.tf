@@ -30,18 +30,6 @@ data "azurerm_eventhub_namespace" "evhns" {
 # only updates the running image tag.
 # ---------------------------------------------------------------------------
 
-locals {
-  sub = "a06983f7-7384-4a09-a092-b13a3896be85"
-  rg  = var.resource_group_name
-}
-
-# One-time import of the pre-existing Container App.
-# SAFE TO DELETE after the first successful apply.
-import {
-  to = azurerm_container_app.simulator
-  id = "/subscriptions/${local.sub}/resourceGroups/${local.rg}/providers/Microsoft.App/containerApps/${var.container_app_name}"
-}
-
 resource "azurerm_container_app" "simulator" {
   name                         = var.container_app_name
   resource_group_name          = data.azurerm_resource_group.rg.name
