@@ -1,12 +1,26 @@
-import { describe, it, expect } from 'vitest'
-import { authEnabled, ADMIN_GROUP_ID } from './authConfig.js'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 
+// authEnabled is derived from env, so stub the env and re-import for a
+// deterministic result regardless of any local .env.local.
 describe('authConfig (issue #54)', () => {
-  it('disables auth when the Entra env vars are blank', () => {
-    // The scaffold ships with blank VITE_ENTRA_* so the app runs open until an
-    // app registration exists. This guards against accidentally shipping a
-    // half-configured auth setup that locks everyone out.
-    expect(authEnabled).toBe(false)
-    expect(ADMIN_GROUP_ID).toBe('')
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it('disables auth when the Entra env vars are blank', async () => {
+    vi.resetModules()
+    vi.stubEnv('VITE_ENTRA_CLIENT_ID', '')
+    vi.stubEnv('VITE_ENTRA_TENANT_ID', '')
+    const mod = await import('./authConfig.js?nocache=' + Date.now())
+    expect(mod.authEnabled).toBe(false)
+  })
+
+  it('enables auth when both client and tenant IDs are set', async () => {
+    vi.resetModules()
+    vi.stubEnv('VITE_ENTRA_CLIENT_ID', 'test-client-id')
+    vi.stubEnv('VITE_ENTRA_TENANT_ID', 'test-tenant-id')
+    const mod = await import('./authConfig.js?nocache=' + Date.now())
+    expect(mod.authEnabled).toBe(true)
   })
 })

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MsalProvider } from '@azure/msal-react'
+import { EventType } from '@azure/msal-browser'
 import './index.css'
 import App from './App.jsx'
 import { authEnabled } from './auth/authConfig.js'
@@ -23,17 +24,22 @@ function render() {
 }
 
 if (authEnabled && msalInstance) {
-  // MSAL v5 requires initialize() before any auth call; handle a returning
-  // redirect before first render so the account is available immediately.
+  // MSAL v5 requires initialize() before use. MsalProvider itself handles the
+  // returning redirect response — we must NOT also call handleRedirectPromise
+  // here, or the two race and the sign-in loops. We just keep the active
+  // account in sync from the cache and from successful logins.
   msalInstance
     .initialize()
-    .then(() => msalInstance.handleRedirectPromise())
-    .then((result) => {
-      if (result?.account) msalInstance.setActiveAccount(result.account)
-      const existing = msalInstance.getAllAccounts()
-      if (!msalInstance.getActiveAccount() && existing.length > 0) {
-        msalInstance.setActiveAccount(existing[0])
+    .then(() => {
+      const accounts = msalInstance.getAllAccounts()
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0])
       }
+      msalInstance.addEventCallback((event) => {
+        if (event.eventType === EventType.LOGIN_SUCCESS && event.payload?.account) {
+          msalInstance.setActiveAccount(event.payload.account)
+        }
+      })
       render()
     })
     .catch((err) => {

@@ -1,29 +1,28 @@
-import { useEffect } from 'react'
-import { useMsal, useIsAuthenticated } from '@azure/msal-react'
+import { MsalAuthenticationTemplate, useMsal } from '@azure/msal-react'
+import { InteractionType } from '@azure/msal-browser'
 import { authEnabled, loginRequest, ADMIN_GROUP_ID } from './authConfig.js'
 
 // Wraps the app. When auth is disabled, renders children as-is. When enabled,
-// requires an interactive sign-in and (if a group is configured) membership in
-// the DeliveryBot-Admin group before showing the app.
+// MsalAuthenticationTemplate drives an interactive redirect sign-in (it manages
+// the in-progress state, so it won't loop), then GroupGate enforces membership
+// in the DeliveryBot-Admin group before showing the app.
 export default function AuthGate({ children }) {
   if (!authEnabled) return children
-  return <GatedContent>{children}</GatedContent>
+
+  return (
+    <MsalAuthenticationTemplate
+      interactionType={InteractionType.Redirect}
+      authenticationRequest={loginRequest}
+      loadingComponent={Loading}
+      errorComponent={ErrorScreen}
+    >
+      <GroupGate>{children}</GroupGate>
+    </MsalAuthenticationTemplate>
+  )
 }
 
-function GatedContent({ children }) {
+function GroupGate({ children }) {
   const { instance, accounts } = useMsal()
-  const isAuthenticated = useIsAuthenticated()
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      instance.loginRedirect(loginRequest).catch((err) => console.error(err))
-    }
-  }, [isAuthenticated, instance])
-
-  if (!isAuthenticated) {
-    return <Centered title="Signing in…" body="Redirecting you to staff sign-in." />
-  }
-
   const account = accounts[0]
   const groups = account?.idTokenClaims?.groups ?? []
   const inAdminGroup = !ADMIN_GROUP_ID || groups.includes(ADMIN_GROUP_ID)
@@ -39,6 +38,19 @@ function GatedContent({ children }) {
   }
 
   return children
+}
+
+function Loading() {
+  return <Centered title="Signing in…" body="Redirecting you to staff sign-in." />
+}
+
+function ErrorScreen({ error }) {
+  return (
+    <Centered
+      title="Sign-in failed"
+      body={String(error?.errorMessage || error?.message || error || 'Unknown error')}
+    />
+  )
 }
 
 function Centered({ title, body, onSignOut }) {

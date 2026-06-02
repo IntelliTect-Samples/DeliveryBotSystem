@@ -1,12 +1,22 @@
-import { describe, it, expect } from 'vitest'
-import { listOrders, ORDER_STATUSES, apiConfig } from './orders.js'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { ORDER_STATUSES } from './orders.js'
 
 describe('orders client (issue #53)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
   it('falls back to mock data when no Order Service URL is configured', async () => {
-    expect(apiConfig.configured).toBe(false)
+    // Stub the env empty and re-import so the result is deterministic even when
+    // a local .env.local supplies a real URL.
+    vi.resetModules()
+    vi.stubEnv('VITE_ORDER_SERVICE_URL', '')
+    const mod = await import('./orders.js?nocache=' + Date.now())
 
-    const { data, source } = await listOrders()
+    expect(mod.apiConfig.configured).toBe(false)
 
+    const { data, source } = await mod.listOrders()
     expect(source).toBe('mock')
     expect(Array.isArray(data)).toBe(true)
     expect(data.length).toBeGreaterThan(0)
