@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "RobotOutputEventHubName": "robot-output",
+    "RobotOutputEventHubConsumerGroup": "readable-bot-network-dev",
+    "RobotOutputEventHubIdentity__fullyQualifiedNamespace": "DeliverybotSimulator-EVHNS.servicebus.windows.net",
+    "RobotOutputEventHubIdentity__credential": "managedidentity",
+    "ReadableBotNetwork__CosmosAccountEndpoint": "https://deliverybot-rbnr-dev-rbnr-mtgpw6.documents.azure.com:443/",
+    "ReadableBotNetwork__CosmosDatabaseName": "bot-network",
+    "ReadableBotNetwork__BotsContainerName": "bots",
+    "ReadableBotNetwork__DiagnosticsContainerName": "function-diagnostics"
+  }
+}
