@@ -1,0 +1,130 @@
+**Simulator IaC Integration Guide**
+
+This document describes what must change to merge the standalone simulator Terraform module into the eventual project-wide IaC.
+
+## Current state
+
+The simulator IaC currently lives in `Iac/simulator/` as a self-contained Terraform setup. It:
+
+- references existing Azure resources with `data` sources
+- owns the simulator Container App's structural configuration
+- intentionally excludes the live Event Hub env vars and secrets
+- uses local state and a module-local provider config
+- is deployed independently from the rest of the project
+
+That shape was chosen to unblock simulator infrastructure work before the full IaC stack exists.
+
+## What needs to change later
+
+### 1. Move the simulator module under the project root IaC
+
+The simulator should become a child module of the eventual root Terraform configuration.
+
+Likely changes:
+
+- move `Iac/simulator/` into the project's module layout
+- remove `providers.tf` from the child module
+- remove `terraform.tfvars` from the child module
+- call the simulator module from the root module
+
+Example:
+
+```hcl
+module "simulator" {
+  source = "./modules/simulator"
+
+  resource_group_name      = var.resource_group_name
+  location                 = var.location
+  container_app_env_name   = var.container_app_env_name
+  acr_name                 = var.acr_name
+  event_hub_namespace_name = var.event_hub_namespace_name
+  container_app_name       = var.simulator_container_app_name
+  image_name               = var.simulator_image_name
+  image_tag                = var.simulator_image_tag
+}
+```
+
+### 2. Add remote state
+
+The current module has no backend. The final IaC should use a remote backend, likely Azure Storage.
+
+Required steps:
+
+- define the backend at the root level
+- migrate local state if any exists
+- keep the simulator module stateless except for managed resources
+
+### 3. Bring Event Hub settings into Terraform
+
+The biggest merge item is the simulator's Event Hub configuration.
+
+The following env vars are currently excluded and must eventually be declared in IaC:
+
+- `EventTransport__Mode`
+- `EventTransport__InputEventHubName`
+- `EventTransport__OutputEventHubName`
+- `EventTransport__ConsumerGroup`
+- `EventTransport__EnableInputConsumer`
+- `EventTransport__ConnectionString` or its managed-identity replacement
+
+Recommended end state:
+
+- non-secret values become plain Terraform env vars
+- the connection string moves to a secret or is removed entirely by switching to managed identity
+- the `ignore_changes` block is removed once Terraform fully owns the env set
+
+### 4. Import the live Container App
+
+The existing `deliverybot-robot-simulator` Container App already exists in Azure.
+
+When the root IaC is ready, import it into state before first apply:
+
+```powershell
+terraform import module.simulator.azurerm_container_app.simulator /subscriptions/<subscription-id>/resourceGroups/ewu-deliverybotsystem-rg/providers/Microsoft.App/containerApps/deliverybot-robot-simulator
+```
+
+This avoids Terraform trying to create a duplicate resource.
+
+### 5. Align workflow deployment with Terraform ownership
+
+The current workflow updates the Container App image only.
+
+Later, it should be adjusted to match the final IaC ownership model:
+
+- keep image tag updates sourced from CI
+- decide whether Terraform or the workflow is the deploy authority
+- remove the image-only `az containerapp update` path if Terraform becomes the single source of truth
+
+### 6. Add project-wide conventions
+
+The final IaC will likely standardize:
+
+- provider configuration
+- variable naming
+- backend configuration
+- tagging
+- naming conventions
+- secret handling
+
+The simulator module should be adapted to those conventions rather than preserved as a standalone exception.
+
+## What can stay the same
+
+- the simulator Container App sizing and ingress choices
+- the existing Azure resource names
+- the module's general variable intent
+- the workflow trigger on `RobotSimulator/**`
+- the image naming convention
+
+## Cleanup list when merging
+
+- remove simulator-local `providers.tf`
+- remove simulator-local `terraform.tfvars`
+- remove `lifecycle.ignore_changes` once env vars are managed in Terraform
+- migrate state to remote backend
+- import the live Container App
+- update the workflow to match the final Terraform deployment flow
+
+## Goal
+
+The end state should be a single project-wide IaC stack where the simulator is just one module, not a separate deployment island.
