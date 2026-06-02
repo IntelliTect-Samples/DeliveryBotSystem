@@ -14,11 +14,3 @@ module "admin_webapp" {
   simulator_api_url     = var.simulator_api_url
   tags                  = var.tags
 }
-
-# The App Service was originally declared at the root before the module
-# refactor. Tell Terraform it simply moved addresses so the existing live
-# resource is preserved instead of destroyed and recreated.
-moved {
-  from = azurerm_linux_web_app.admin
-  to   = module.admin_webapp.azurerm_linux_web_app.admin
-}
