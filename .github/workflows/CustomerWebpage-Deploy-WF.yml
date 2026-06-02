@@ -49,6 +49,7 @@ jobs:
         env:
           VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
           VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
+          VITE_ORDER_SERVICE_API_BASE: ${{ vars.VITE_ORDER_SERVICE_API_BASE }}
 
       - name: Azure Login
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
