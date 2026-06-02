@@ -10,60 +10,6 @@ const MAP_TILE_URL =
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 const SPOKANE_CENTER = [47.6588, -117.426]
 
-const demoBots = [
-  {
-    botId: "bot-001",
-    model: "DeliveryBot-V1",
-    status: "Available",
-    currentLocation: {
-      latitude: 47.6588,
-      longitude: -117.426
-    },
-    powerLevel: 99.9,
-    externalTemperature: 72,
-    internalStorageTemperature: 38,
-    stock: [
-      {
-        itemId: "water",
-        itemName: "Water",
-        quantityAvailable: 19
-      }
-    ],
-    activeOrderId: null,
-    queuedOrderCount: 0
-  },
-  {
-    botId: "bot-002",
-    model: "DeliveryBot-V1",
-    status: "OnDelivery",
-    currentLocation: {
-      latitude: 47.6572,
-      longitude: -117.4236
-    },
-    powerLevel: 86.4,
-    externalTemperature: 71,
-    internalStorageTemperature: 39,
-    stock: [],
-    activeOrderId: "order-104",
-    queuedOrderCount: 1
-  },
-  {
-    botId: "bot-003",
-    model: "DeliveryBot-V1",
-    status: "Charging",
-    currentLocation: {
-      latitude: 47.6605,
-      longitude: -117.4145
-    },
-    powerLevel: 24.6,
-    externalTemperature: 72,
-    internalStorageTemperature: 38,
-    stock: [],
-    activeOrderId: null,
-    queuedOrderCount: 0
-  }
-]
-
 export default function Home() {
   const [bots, setBots] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -108,9 +54,7 @@ export default function Home() {
     }
   }, [])
 
-  const displayedBots = bots.length > 0 ? bots : demoBots
-  const fleetStats = useMemo(() => getFleetStats(displayedBots), [displayedBots])
-  const isDemoData = bots.length === 0
+  const fleetStats = useMemo(() => getFleetStats(bots), [bots])
 
   return (
     <div style={styles.page}>
@@ -154,7 +98,7 @@ export default function Home() {
             {isLoading
               ? "Loading simulator data"
               : error
-                ? "Showing demo data"
+                ? "Simulator data unavailable"
                 : `Updated ${lastUpdated?.toLocaleTimeString([], {
                     hour: "numeric",
                     minute: "2-digit",
@@ -165,8 +109,8 @@ export default function Home() {
 
         {error && (
           <p style={styles.notice}>
-            Start the RobotSimulator API on port 5099 to replace these demo
-            cards with live simulated robot data.
+            Unable to load robot fleet data from the simulator. The dashboard
+            will update automatically when simulator data is available.
           </p>
         )}
 
@@ -177,13 +121,21 @@ export default function Home() {
           <Metric label="Average battery" value={`${fleetStats.averageBattery}%`} />
         </div>
 
-        <FleetMap bots={displayedBots} isDemoData={isDemoData} />
+        <FleetMap bots={bots} />
 
-        <div style={styles.botGrid}>
-          {displayedBots.map((bot) => (
-            <BotCard key={bot.botId} bot={bot} isDemoData={isDemoData} />
-          ))}
-        </div>
+        {bots.length > 0 ? (
+          <div style={styles.botGrid}>
+            {bots.map((bot) => (
+              <BotCard key={bot.botId} bot={bot} />
+            ))}
+          </div>
+        ) : (
+          <p style={styles.emptyState}>
+            {isLoading
+              ? "Waiting for robot fleet data..."
+              : "No robot fleet data is available yet."}
+          </p>
+        )}
       </section>
     </div>
   )
@@ -207,7 +159,7 @@ function Metric({ label, value }) {
   )
 }
 
-function FleetMap({ bots, isDemoData }) {
+function FleetMap({ bots }) {
   const mapElementRef = useRef(null)
   const mapRef = useRef(null)
   const markerLayerRef = useRef(null)
@@ -355,17 +307,11 @@ function FleetMap({ bots, isDemoData }) {
           })}
         </div>
       </div>
-
-      {isDemoData && (
-        <p style={styles.mapFootnote}>
-          Demo coordinates are shown until simulator data is available.
-        </p>
-      )}
     </section>
   )
 }
 
-function BotCard({ bot, isDemoData }) {
+function BotCard({ bot }) {
   const statusColor = getStatusColor(bot.status)
   const location = bot.currentLocation
   const stockSummary = getStockSummary(bot.stock)
@@ -417,8 +363,6 @@ function BotCard({ bot, isDemoData }) {
           {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
         </p>
       )}
-
-      {isDemoData && <p style={styles.demoLabel}>Demo preview</p>}
     </article>
   )
 }
@@ -721,16 +665,19 @@ const styles = {
     flex: "0 0 auto"
   },
 
-  mapFootnote: {
-    color: "#64748b",
-    fontSize: "0.85rem",
-    marginTop: "0.85rem"
-  },
-
   botGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
     gap: "1rem"
+  },
+
+  emptyState: {
+    color: "#cbd5e1",
+    backgroundColor: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "8px",
+    padding: "1rem",
+    textAlign: "left"
   },
 
   botCard: {
@@ -822,14 +769,5 @@ const styles = {
     color: "#475569",
     fontFamily: "Consolas, monospace",
     fontSize: "0.85rem"
-  },
-
-  demoLabel: {
-    position: "absolute",
-    right: "1rem",
-    bottom: "1rem",
-    color: "#64748b",
-    fontSize: "0.8rem",
-    fontWeight: "bold"
   }
 }
