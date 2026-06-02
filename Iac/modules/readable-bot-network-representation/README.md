@@ -77,11 +77,15 @@ Recommended document shape:
 The module configures identity-friendly settings for the future Function App code:
 
 - `RobotOutputEventHub__fullyQualifiedNamespace`
+- `RobotOutputEventHub__credential`
+- `RobotOutputEventHubName`
+- `RobotOutputEventHubConsumerGroup`
 - `RobotOutputEventHub__eventHubName`
 - `RobotOutputEventHub__consumerGroup`
 - `ReadableBotNetwork__CosmosAccountEndpoint`
 - `ReadableBotNetwork__CosmosDatabaseName`
 - `ReadableBotNetwork__CosmosContainerName`
 - `ReadableBotNetwork__CosmosPartitionKey`
+- `AzureWebJobsFeatureFlags`
 
 Deployment of the Function App code is intentionally out of scope for this module. CI can publish the compiled Function App to the `function_app_name` output.

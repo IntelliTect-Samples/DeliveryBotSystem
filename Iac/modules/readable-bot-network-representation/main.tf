@@ -167,6 +167,7 @@ resource "azurerm_linux_function_app" "read_model" {
   app_settings = merge(
     {
       FUNCTIONS_WORKER_RUNTIME = var.functions_worker_runtime
+      AzureWebJobsFeatureFlags = "EnableWorkerIndexing"
 
       ReadableBotNetwork__CosmosAccountEndpoint = azurerm_cosmosdb_account.read_model.endpoint
       ReadableBotNetwork__CosmosDatabaseName    = azurerm_cosmosdb_sql_database.read_model.name
@@ -177,7 +178,10 @@ resource "azurerm_linux_function_app" "read_model" {
       ReadableBotNetwork__EventHubName                    = data.azurerm_eventhub.robot_output.name
       ReadableBotNetwork__EventHubConsumerGroup           = var.eventhub_consumer_group_name
 
+      RobotOutputEventHubName                      = data.azurerm_eventhub.robot_output.name
+      RobotOutputEventHubConsumerGroup             = var.eventhub_consumer_group_name
       RobotOutputEventHub__fullyQualifiedNamespace = local.eventhub_fully_qualified_domain
+      RobotOutputEventHub__credential              = "managedidentity"
       RobotOutputEventHub__eventHubName            = data.azurerm_eventhub.robot_output.name
       RobotOutputEventHub__consumerGroup           = var.eventhub_consumer_group_name
     },
@@ -185,6 +189,13 @@ resource "azurerm_linux_function_app" "read_model" {
   )
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [
+      app_settings["WEBSITE_RUN_FROM_PACKAGE"],
+      tags["hidden-link: /app-insights-resource-id"]
+    ]
+  }
 }
 
 resource "azurerm_role_assignment" "function_eventhub_receiver" {

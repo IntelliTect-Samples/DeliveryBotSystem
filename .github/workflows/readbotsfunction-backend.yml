@@ -1,0 +1,198 @@
+name: ReadBotsFunction Backend Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  LOCATION: westus2
+
+  FUNCTION_APP_NAME: deliverybot-rbnr-dev-rbnr-func-mtgpw6
+
+  EVENTHUB_NAMESPACE_NAME: DeliverybotSimulator-EVHNS
+  EVENTHUB_NAME: robot-output
+  EVENTHUB_CONSUMER_GROUP: readable-bot-network-dev
+
+  COSMOS_ACCOUNT_NAME: deliverybot-rbnr-dev-rbnr-mtgpw6
+  COSMOS_DATABASE_NAME: bot-network
+  COSMOS_BOTS_CONTAINER_NAME: bots
+  COSMOS_DIAGNOSTICS_CONTAINER_NAME: function-diagnostics
+
+  DOTNET_VERSION: "8.0.x"
+  FUNCTION_PROJECT: ReadBotsFunction/ReadBotsFunction.csproj
+  PUBLISH_DIR: ReadBotsFunction/bin/Release/publish
+  PACKAGE_PATH: ReadBotsFunction/bin/Release/readbotsfunction.zip
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Cosmos containers exist
+        run: |
+          set -euo pipefail
+
+          if az cosmosdb sql container show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --database-name "$COSMOS_DATABASE_NAME" \
+            --name "$COSMOS_BOTS_CONTAINER_NAME" \
+            --query name -o tsv >/dev/null 2>&1; then
+            echo "Cosmos bots container already exists."
+          else
+            az cosmosdb sql container create \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$COSMOS_ACCOUNT_NAME" \
+              --database-name "$COSMOS_DATABASE_NAME" \
+              --name "$COSMOS_BOTS_CONTAINER_NAME" \
+              --partition-key-path /botId \
+              --output none
+          fi
+
+          if az cosmosdb sql container show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --database-name "$COSMOS_DATABASE_NAME" \
+            --name "$COSMOS_DIAGNOSTICS_CONTAINER_NAME" \
+            --query name -o tsv >/dev/null 2>&1; then
+            echo "Cosmos diagnostics container already exists."
+          else
+            az cosmosdb sql container create \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$COSMOS_ACCOUNT_NAME" \
+              --database-name "$COSMOS_DATABASE_NAME" \
+              --name "$COSMOS_DIAGNOSTICS_CONTAINER_NAME" \
+              --partition-key-path /id \
+              --output none
+          fi
+
+      - name: Configure Function App runtime and settings
+        run: |
+          set -euo pipefail
+
+          EVENTHUB_FQDN="${EVENTHUB_NAMESPACE_NAME}.servicebus.windows.net"
+          COSMOS_ENDPOINT=$(az cosmosdb show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$COSMOS_ACCOUNT_NAME" \
+            --query documentEndpoint -o tsv)
+
+          az functionapp config set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --linux-fx-version "DOTNET-ISOLATED|8.0" \
+            --output none
+
+          az functionapp config appsettings set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --settings \
+              "FUNCTIONS_WORKER_RUNTIME=dotnet-isolated" \
+              "AzureWebJobsFeatureFlags=EnableWorkerIndexing" \
+              "RobotOutputEventHubName=$EVENTHUB_NAME" \
+              "RobotOutputEventHubConsumerGroup=$EVENTHUB_CONSUMER_GROUP" \
+              "RobotOutputEventHubIdentity__fullyQualifiedNamespace=$EVENTHUB_FQDN" \
+              "RobotOutputEventHubIdentity__credential=managedidentity" \
+              "ReadableBotNetwork__CosmosAccountEndpoint=$COSMOS_ENDPOINT" \
+              "ReadableBotNetwork__CosmosDatabaseName=$COSMOS_DATABASE_NAME" \
+              "ReadableBotNetwork__BotsContainerName=$COSMOS_BOTS_CONTAINER_NAME" \
+              "ReadableBotNetwork__DiagnosticsContainerName=$COSMOS_DIAGNOSTICS_CONTAINER_NAME" \
+            --output none
+
+      - name: Ensure Function App RBAC
+        run: |
+          set -euo pipefail
+
+          PRINCIPAL_ID=$(az functionapp show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --query identity.principalId -o tsv)
+
+          EVENTHUB_SCOPE=$(az eventhubs namespace show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$EVENTHUB_NAMESPACE_NAME" \
+            --query id -o tsv)
+
+          COSMOS_SCOPE=$(az cosmosdb show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$COSMOS_ACCOUNT_NAME" \
+            --query id -o tsv)
+
+          if az role assignment list \
+            --assignee "$PRINCIPAL_ID" \
+            --scope "$EVENTHUB_SCOPE" \
+            --query "[?roleDefinitionName=='Azure Event Hubs Data Receiver'] | length(@)" \
+            -o tsv | grep -q '^0$'; then
+            az role assignment create \
+              --assignee "$PRINCIPAL_ID" \
+              --role "Azure Event Hubs Data Receiver" \
+              --scope "$EVENTHUB_SCOPE" \
+              --output none
+          else
+            echo "Event Hubs Data Receiver role assignment already exists."
+          fi
+
+          if az cosmosdb sql role assignment list \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --query "[?principalId=='$PRINCIPAL_ID' && scope=='$COSMOS_SCOPE'] | length(@)" \
+            -o tsv | grep -q '^0$'; then
+            az cosmosdb sql role assignment create \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$COSMOS_ACCOUNT_NAME" \
+              --role-definition-id "$COSMOS_SCOPE/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002" \
+              --principal-id "$PRINCIPAL_ID" \
+              --scope "$COSMOS_SCOPE" \
+              --output none
+          else
+            echo "Cosmos DB SQL data contributor role assignment already exists."
+          fi
+
+      - name: Publish Function App
+        run: |
+          dotnet publish "$FUNCTION_PROJECT" \
+            --configuration Release \
+            --output "$PUBLISH_DIR"
+
+      - name: Create deployment package
+        run: |
+          cd "$PUBLISH_DIR"
+          zip -r "$GITHUB_WORKSPACE/$PACKAGE_PATH" .
+
+      - name: Deploy Function App package
+        run: |
+          az functionapp deployment source config-zip \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --src "$PACKAGE_PATH"
+
+      - name: Sync and list functions
+        run: |
+          az rest \
+            --method post \
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${FUNCTION_APP_NAME}/syncfunctiontriggers?api-version=2022-03-01" \
+            --output none
+
+          az functionapp function list \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --query "[].{name:name, disabled:isDisabled}" \
+            --output table
