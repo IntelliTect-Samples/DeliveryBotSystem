@@ -2,6 +2,7 @@
 // Runs EF Core migrations automatically on startup so tables are always up to date.
 using Microsoft.EntityFrameworkCore;
 using OrderService.Data;
+using OrderService.Events;
 using OrderService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,8 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 
 // ── Services ───────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IOrderService, OrderService.Services.OrderService>();
+// Consumes bot events from Event Hub and advances order status (#41).
+builder.Services.AddHostedService<OrderStatusConsumer>();
 builder.Services.AddHttpClient();
 // Nominatim requires a User-Agent header or it rejects requests
 builder.Services.AddHttpClient("Nominatim", client =>

@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OrderService.Data;
 using OrderService.DTOs;
+using OrderService.Events;
 using OrderService.Models;
 
 namespace OrderService.Services;
@@ -99,6 +100,36 @@ public class OrderService : IOrderService
         return orders.Select(ToResponseDto);
     }
 
+    public async Task ApplyStatusEventAsync(RobotEventEnvelope evt, CancellationToken ct = default)
+    {
+        // Never react to events we published ourselves (RobotOrderAssignment).
+        if (string.Equals(evt.Source, "order-service", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        foreach (var change in OrderStatusMapping.Map(evt))
+        {
+            if (!Guid.TryParse(change.OrderId, out var orderId))
+                continue;
+
+            var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, ct);
+            if (order is null)
+                continue; // event for an order we don't own (or not yet persisted)
+
+            // Forward-only: ignore duplicate/out-of-order events that would regress status.
+            if (!OrderStatusMapping.IsForward(order.Status, change.Status))
+                continue;
+
+            var previous = order.Status;
+            order.Status = change.Status;
+            order.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation(
+                "Order status updated from bot event. OrderId={OrderId} {From}->{To} EventType={EventType}",
+                order.Id, previous, change.Status, evt.EventType);
+        }
+    }
+
     // Calls OpenStreetMap Nominatim to convert a text address to GPS coordinates.
     // Falls back to downtown Spokane if geocoding fails so orders still go through.
     private async Task<(double Latitude, double Longitude)> GeocodeAddressAsync(string address)
@@ -136,13 +167,17 @@ public class OrderService : IOrderService
         }
     }
 
-    // Maps the UI order type dropdown to item IDs the simulator recognizes
+    // Order options mirror the simulator's bot stock catalog (RobotSimulator BotFleet):
+    // water, soda, chips, sandwich. Bots reject anything they don't stock, so the
+    // Order Service follows the simulator's catalog directly rather than mapping
+    // abstract order types. Accepts the item id ("water") or display name ("Water").
     private static List<(string ItemId, int Quantity)> MapOrderTypeToItems(string orderType) =>
-        orderType switch
+        orderType?.Trim().ToLowerInvariant() switch
         {
-            "Beverage Order" => [("beverage", 1)],
-            "Small Package"  => [("package", 1)],
-            _                => [("food", 1)]      // "Food Order" and any unknown type
+            "soda"     => [("soda", 1)],
+            "chips"    => [("chips", 1)],
+            "sandwich" => [("sandwich", 1)],
+            _          => [("water", 1)]   // "water" and any unrecognized value → water (always stocked)
         };
 
     // Calls BotNetApi and returns the Name of the first available bot

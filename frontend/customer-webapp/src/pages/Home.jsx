@@ -1,8 +1,14 @@
 import { Link } from "react-router-dom"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import L from "leaflet"
+import "leaflet/dist/leaflet.css"
 
 const SIMULATOR_API_BASE =
   import.meta.env.VITE_SIMULATOR_API_BASE || "/api/simulator"
+const MAP_TILE_URL =
+  import.meta.env.VITE_MAP_TILE_URL ||
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+const SPOKANE_CENTER = [47.6588, -117.426]
 
 const demoBots = [
   {
@@ -10,8 +16,8 @@ const demoBots = [
     model: "DeliveryBot-V1",
     status: "Available",
     currentLocation: {
-      latitude: 33.4255,
-      longitude: -111.94
+      latitude: 47.6588,
+      longitude: -117.426
     },
     powerLevel: 99.9,
     externalTemperature: 72,
@@ -31,8 +37,8 @@ const demoBots = [
     model: "DeliveryBot-V1",
     status: "OnDelivery",
     currentLocation: {
-      latitude: 33.4261,
-      longitude: -111.9394
+      latitude: 47.6572,
+      longitude: -117.4236
     },
     powerLevel: 86.4,
     externalTemperature: 71,
@@ -46,8 +52,8 @@ const demoBots = [
     model: "DeliveryBot-V1",
     status: "Charging",
     currentLocation: {
-      latitude: 33.4248,
-      longitude: -111.9408
+      latitude: 47.6605,
+      longitude: -117.4145
     },
     powerLevel: 24.6,
     externalTemperature: 72,
@@ -171,6 +177,8 @@ export default function Home() {
           <Metric label="Average battery" value={`${fleetStats.averageBattery}%`} />
         </div>
 
+        <FleetMap bots={displayedBots} isDemoData={isDemoData} />
+
         <div style={styles.botGrid}>
           {displayedBots.map((bot) => (
             <BotCard key={bot.botId} bot={bot} isDemoData={isDemoData} />
@@ -196,6 +204,164 @@ function Metric({ label, value }) {
       <span style={styles.metricLabel}>{label}</span>
       <strong style={styles.metricValue}>{value}</strong>
     </div>
+  )
+}
+
+function FleetMap({ bots, isDemoData }) {
+  const mapElementRef = useRef(null)
+  const mapRef = useRef(null)
+  const markerLayerRef = useRef(null)
+  const hasFitMapRef = useRef(false)
+  const lastBotIdsRef = useRef("")
+  const locatedBots = useMemo(
+    () =>
+      bots.filter(
+        (bot) =>
+          Number.isFinite(bot.currentLocation?.latitude) &&
+          Number.isFinite(bot.currentLocation?.longitude)
+      ),
+    [bots]
+  )
+
+  useEffect(() => {
+    if (!mapElementRef.current || mapRef.current) {
+      return undefined
+    }
+
+    const map = L.map(mapElementRef.current, {
+      center: SPOKANE_CENTER,
+      zoom: 15,
+      minZoom: 12,
+      maxZoom: 19,
+      scrollWheelZoom: true
+    })
+
+    L.tileLayer(MAP_TILE_URL, {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      detectRetina: true,
+      keepBuffer: 3,
+      updateWhenIdle: true
+    }).addTo(map)
+
+    mapRef.current = map
+    markerLayerRef.current = L.layerGroup().addTo(map)
+
+    window.setTimeout(() => map.invalidateSize(), 0)
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+      markerLayerRef.current = null
+      hasFitMapRef.current = false
+      lastBotIdsRef.current = ""
+    }
+  }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    const markerLayer = markerLayerRef.current
+
+    if (!map || !markerLayer) {
+      return
+    }
+
+    markerLayer.clearLayers()
+
+    if (locatedBots.length === 0) {
+      map.setView(SPOKANE_CENTER, 15)
+      return
+    }
+
+    locatedBots.forEach((bot) => {
+      const statusColor = getStatusColor(bot.status)
+      const marker = L.circleMarker(
+        [bot.currentLocation.latitude, bot.currentLocation.longitude],
+        {
+          radius: 10,
+          color: statusColor.background,
+          fillColor: statusColor.text,
+          fillOpacity: 1,
+          opacity: 1,
+          weight: 4
+        }
+      )
+
+      marker
+        .bindTooltip(`${bot.botId} - ${formatStatus(bot.status || "Unknown")}`, {
+          direction: "top",
+          offset: [0, -10],
+          opacity: 0.95
+        })
+        .addTo(markerLayer)
+    })
+
+    const botIds = locatedBots
+      .map((bot) => bot.botId)
+      .sort()
+      .join("|")
+
+    if (!hasFitMapRef.current || lastBotIdsRef.current !== botIds) {
+      const bounds = L.latLngBounds(
+        locatedBots.map((bot) => [
+          bot.currentLocation.latitude,
+          bot.currentLocation.longitude
+        ])
+      )
+
+      map.fitBounds(bounds.pad(0.35), {
+        maxZoom: 16
+      })
+      hasFitMapRef.current = true
+      lastBotIdsRef.current = botIds
+    }
+  }, [locatedBots])
+
+  return (
+    <section style={styles.mapPanel} aria-label="Robot location map">
+      <div style={styles.mapHeader}>
+        <div>
+          <p style={styles.kicker}>Fleet map</p>
+          <h3 style={styles.mapTitle}>Robot Locations</h3>
+        </div>
+
+        <span style={styles.mapCount}>
+          {locatedBots.length} mapped robot{locatedBots.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div style={styles.mapShell}>
+        <div
+          ref={mapElementRef}
+          style={styles.mapCanvas}
+          aria-label="Interactive Spokane robot map"
+        />
+
+        <div style={styles.mapLegend}>
+          {["Available", "OnDelivery", "Charging"].map((status) => {
+            const statusColor = getStatusColor(status)
+
+            return (
+              <div key={status} style={styles.legendItem}>
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    backgroundColor: statusColor.text
+                  }}
+                />
+                <span>{formatStatus(status)}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {isDemoData && (
+        <p style={styles.mapFootnote}>
+          Demo coordinates are shown until simulator data is available.
+        </p>
+      )}
+    </section>
   )
 }
 
@@ -297,6 +463,14 @@ function getStockSummary(stock = []) {
     .slice(0, 2)
     .map((item) => `${item.itemName || item.itemId}: ${item.quantityAvailable}`)
     .join(", ")
+}
+
+function formatStatus(status) {
+  if (status === "OnDelivery") {
+    return "On delivery"
+  }
+
+  return status
 }
 
 function getStatusColor(status) {
@@ -466,6 +640,91 @@ const styles = {
     fontSize: "1.7rem",
     lineHeight: 1.2,
     marginTop: "0.3rem"
+  },
+
+  mapPanel: {
+    backgroundColor: "#f8fafc",
+    border: "1px solid #cbd5e1",
+    borderRadius: "8px",
+    color: "#0f172a",
+    marginBottom: "1rem",
+    padding: "1rem",
+    textAlign: "left"
+  },
+
+  mapHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "1rem",
+    marginBottom: "1rem",
+    flexWrap: "wrap"
+  },
+
+  mapTitle: {
+    color: "#0f172a",
+    fontSize: "1.35rem",
+    lineHeight: 1.2,
+    margin: 0
+  },
+
+  mapCount: {
+    color: "#475569",
+    backgroundColor: "#e2e8f0",
+    border: "1px solid #cbd5e1",
+    borderRadius: "999px",
+    padding: "0.4rem 0.7rem",
+    fontSize: "0.82rem",
+    fontWeight: "bold"
+  },
+
+  mapShell: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    alignItems: "stretch"
+  },
+
+  mapCanvas: {
+    height: "430px",
+    minHeight: "360px",
+    overflow: "hidden",
+    borderRadius: "8px",
+    border: "1px solid #bfdbfe",
+    backgroundColor: "#e2e8f0"
+  },
+
+  mapLegend: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.7rem",
+    backgroundColor: "#f1f5f9",
+    border: "1px solid #cbd5e1",
+    borderRadius: "8px",
+    padding: "1rem",
+    minHeight: "auto"
+  },
+
+  legendItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.55rem",
+    color: "#334155",
+    fontSize: "0.9rem",
+    fontWeight: "bold"
+  },
+
+  legendDot: {
+    width: "0.8rem",
+    height: "0.8rem",
+    borderRadius: "999px",
+    flex: "0 0 auto"
+  },
+
+  mapFootnote: {
+    color: "#64748b",
+    fontSize: "0.85rem",
+    marginTop: "0.85rem"
   },
 
   botGrid: {

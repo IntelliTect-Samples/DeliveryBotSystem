@@ -1,11 +1,33 @@
 name: CustomerWebpage-Deploy-WF
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/customer-webapp/**"
+      - ".github/workflows/CustomerWebpage-Deploy-WF.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/customer-webapp/**"
+      - ".github/workflows/CustomerWebpage-Deploy-WF.yml"
+
   workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/customer-webapp
 
     steps:
       - name: Checkout repository
@@ -17,16 +39,28 @@ jobs:
           node-version: '22.x'
 
       - name: Install dependencies
-        working-directory: ./frontend
-        run: npm install
+        run: npm ci
 
-      - name: Build React app
-        working-directory: ./frontend
+      - name: Lint application
+        run: npm run lint
+
+      - name: Build application
         run: npm run build
+        env:
+          VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
+          VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
+
+      - name: Azure Login
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'WA-DeliveryBot-dev'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1BA6A9C76C684517B5106BD8ACF4CE5B }}
-          package: ./frontend/dist
+          app-name: WA-DeliveryBot-dev
+          package: frontend/customer-webapp/dist

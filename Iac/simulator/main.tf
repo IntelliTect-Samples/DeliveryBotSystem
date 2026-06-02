@@ -25,28 +25,9 @@ data "azurerm_eventhub_namespace" "evhns" {
 # ---------------------------------------------------------------------------
 # Robot Simulator Container App
 #
-# Ownership boundary (Balanced approach):
-#   OWNED by this module:
-#     - Container image reference
-#     - Ingress: external, port 8080
-#     - Revision mode: single (stateful in-memory simulator; one replica only)
-#     - Scale: min 1, max 1
-#     - System-assigned managed identity
-#     - ACR registry reference
-#     - Non-sensitive env vars: ASPNETCORE_ENVIRONMENT, ASPNETCORE_URLS
-#
-#   NOT owned by this module (managed outside IaC):
-#     - EventTransport__Mode
-#     - EventTransport__ConnectionString
-#     - EventTransport__InputEventHubName
-#     - EventTransport__OutputEventHubName
-#     - EventTransport__ConsumerGroup
-#     - EventTransport__EnableInputConsumer
-#     - Any Container App secrets
-#
-#   Reason: these env vars and secrets are already live on the Container App
-#   and must not be overwritten during early IaC rollout. They will be brought
-#   under IaC management when the project-wide IaC module is established.
+# The simulator holds bot state in memory; only a single replica is safe.
+# All environment variables and secrets are managed here — the CD pipeline
+# only updates the running image tag.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_container_app" "simulator" {
@@ -59,36 +40,110 @@ resource "azurerm_container_app" "simulator" {
     type = "SystemAssigned"
   }
 
+  secret {
+    name  = "eventhub-connection-string"
+    value = var.eventhub_connection_string
+  }
+
   registry {
     server = data.azurerm_container_registry.acr.login_server
   }
 
   template {
+    min_replicas = 1
+    max_replicas = 1
+
     container {
       name   = var.container_app_name
       image  = "${data.azurerm_container_registry.acr.login_server}/${var.image_name}:${var.image_tag}"
       cpu    = 0.5
       memory = "1Gi"
 
-      # Non-sensitive runtime environment variables.
-      # Event Hub transport settings are intentionally excluded — see ownership
-      # boundary comment above.
       env {
         name  = "ASPNETCORE_ENVIRONMENT"
-        value = "Production"
+        value = "Development"
       }
 
       env {
         name  = "ASPNETCORE_URLS"
         value = "http://+:8080"
       }
-    }
 
-    # Scale is fixed at exactly one replica.
-    # The simulator holds bot state in memory; multiple replicas would produce
-    # independent, conflicting bot fleets with no shared state.
-    min_replicas = 1
-    max_replicas = 1
+      env {
+        name  = "EventTransport__Mode"
+        value = var.event_transport_mode
+      }
+
+      env {
+        name        = "EventTransport__ConnectionString"
+        secret_name = "eventhub-connection-string"
+      }
+
+      env {
+        name  = "EventTransport__InputEventHubName"
+        value = var.event_transport_input_hub
+      }
+
+      env {
+        name  = "EventTransport__OutputEventHubName"
+        value = var.event_transport_output_hub
+      }
+
+      env {
+        name  = "EventTransport__ConsumerGroup"
+        value = var.event_transport_consumer_group
+      }
+
+      env {
+        name  = "EventTransport__EnableInputConsumer"
+        value = "true"
+      }
+
+      env {
+        name  = "Simulator__InitialBotCount"
+        value = tostring(var.simulator_initial_bot_count)
+      }
+
+      env {
+        name  = "Simulator__BotIdPrefix"
+        value = var.simulator_bot_id_prefix
+      }
+
+      env {
+        name  = "Simulator__DefaultBotModel"
+        value = var.simulator_default_bot_model
+      }
+
+      env {
+        name  = "Simulator__DefaultLatitude"
+        value = var.simulator_default_latitude
+      }
+
+      env {
+        name  = "Simulator__DefaultLongitude"
+        value = var.simulator_default_longitude
+      }
+
+      env {
+        name  = "Simulation__TickIntervalSeconds"
+        value = tostring(var.simulation_tick_interval_seconds)
+      }
+
+      env {
+        name  = "Simulation__TelemetryIntervalSeconds"
+        value = tostring(var.simulation_telemetry_interval_seconds)
+      }
+
+      env {
+        name  = "Simulation__DeliverySpeedMetersPerSecond"
+        value = tostring(var.simulation_delivery_speed_mps)
+      }
+
+      env {
+        name  = "Simulation__DestinationArrivalThresholdMeters"
+        value = tostring(var.simulation_arrival_threshold_meters)
+      }
+    }
   }
 
   ingress {
@@ -102,13 +157,11 @@ resource "azurerm_container_app" "simulator" {
   }
 
   lifecycle {
-    # Prevent Terraform from overwriting env vars or secrets that are managed
-    # outside this module (e.g., Event Hub connection settings set via portal
-    # or CLI). Remove this ignore block once those settings are brought under
-    # IaC management.
     ignore_changes = [
-      template[0].container[0].env,
-      secret,
+      # The CD pipeline deploys new image tags per commit; let it own the
+      # running image rather than reverting to var.image_tag on every apply.
+      template[0].container[0].image,
     ]
   }
 }
+
