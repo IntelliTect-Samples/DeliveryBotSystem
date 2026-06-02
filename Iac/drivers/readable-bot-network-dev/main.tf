@@ -11,7 +11,7 @@ module "readable_bot_network_representation" {
   eventhub_namespace_name       = var.eventhub_namespace_name
   robot_output_eventhub_name    = var.robot_output_eventhub_name
   eventhub_consumer_group_name  = "readable-bot-network-dev"
-  assign_eventhub_receiver_role = false
+  assign_eventhub_receiver_role = true
 
   cosmos_enable_serverless = true
   function_dotnet_version  = "8.0"

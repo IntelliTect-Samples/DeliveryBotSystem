@@ -28,6 +28,11 @@ output "cosmos_container_name" {
   value       = module.readable_bot_network_representation.cosmos_container_name
 }
 
+output "cosmos_diagnostics_container_name" {
+  description = "Cosmos container name for Function App event processing diagnostics."
+  value       = module.readable_bot_network_representation.cosmos_diagnostics_container_name
+}
+
 output "eventhub_consumer_group_name" {
   description = "Event Hub consumer group used by the projection Function App."
   value       = module.readable_bot_network_representation.eventhub_consumer_group_name

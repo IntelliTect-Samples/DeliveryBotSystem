@@ -96,6 +96,15 @@ resource "azurerm_cosmosdb_sql_container" "bots" {
   partition_key_version = 2
 }
 
+resource "azurerm_cosmosdb_sql_container" "diagnostics" {
+  name                = var.cosmos_diagnostics_container_name
+  resource_group_name = var.resource_group_name
+  account_name        = azurerm_cosmosdb_account.read_model.name
+  database_name       = azurerm_cosmosdb_sql_database.read_model.name
+
+  partition_key_paths = [var.cosmos_diagnostics_partition_key_path]
+}
+
 resource "azurerm_storage_account" "function" {
   name                            = local.storage_account_name
   location                        = var.location
@@ -169,21 +178,16 @@ resource "azurerm_linux_function_app" "read_model" {
       FUNCTIONS_WORKER_RUNTIME = var.functions_worker_runtime
       AzureWebJobsFeatureFlags = "EnableWorkerIndexing"
 
-      ReadableBotNetwork__CosmosAccountEndpoint = azurerm_cosmosdb_account.read_model.endpoint
-      ReadableBotNetwork__CosmosDatabaseName    = azurerm_cosmosdb_sql_database.read_model.name
-      ReadableBotNetwork__CosmosContainerName   = azurerm_cosmosdb_sql_container.bots.name
-      ReadableBotNetwork__CosmosPartitionKey    = var.cosmos_partition_key_paths[0]
-
-      ReadableBotNetwork__EventHubFullyQualifiedNamespace = local.eventhub_fully_qualified_domain
-      ReadableBotNetwork__EventHubName                    = data.azurerm_eventhub.robot_output.name
-      ReadableBotNetwork__EventHubConsumerGroup           = var.eventhub_consumer_group_name
-
-      RobotOutputEventHubName                      = data.azurerm_eventhub.robot_output.name
-      RobotOutputEventHubConsumerGroup             = var.eventhub_consumer_group_name
-      RobotOutputEventHub__fullyQualifiedNamespace = local.eventhub_fully_qualified_domain
-      RobotOutputEventHub__credential              = "managedidentity"
-      RobotOutputEventHub__eventHubName            = data.azurerm_eventhub.robot_output.name
-      RobotOutputEventHub__consumerGroup           = var.eventhub_consumer_group_name
+      ReadableBotNetwork__CosmosAccountEndpoint            = azurerm_cosmosdb_account.read_model.endpoint
+      ReadableBotNetwork__CosmosDatabaseName               = azurerm_cosmosdb_sql_database.read_model.name
+      ReadableBotNetwork__BotsContainerName                = azurerm_cosmosdb_sql_container.bots.name
+      ReadableBotNetwork__DiagnosticsContainerName         = azurerm_cosmosdb_sql_container.diagnostics.name
+      ReadableBotNetwork__CosmosPartitionKey               = var.cosmos_partition_key_paths[0]
+      ReadableBotNetwork__DiagnosticsPartitionKey          = var.cosmos_diagnostics_partition_key_path
+      RobotOutputEventHubName                              = data.azurerm_eventhub.robot_output.name
+      RobotOutputEventHubConsumerGroup                     = var.eventhub_consumer_group_name
+      RobotOutputEventHubIdentity__fullyQualifiedNamespace = local.eventhub_fully_qualified_domain
+      RobotOutputEventHubIdentity__credential              = "managedidentity"
     },
     var.additional_app_settings
   )

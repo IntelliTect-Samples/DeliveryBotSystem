@@ -3,6 +3,7 @@
 Creates the Azure resources needed for the bot network read model:
 
 - Cosmos DB account, SQL database, and `bots` container
+- Cosmos DB `function-diagnostics` container for rejected or failed event records
 - Linux Azure Function App host for the Event Hub projection
 - Function App storage account
 - Consumption App Service plan
@@ -74,18 +75,18 @@ Recommended document shape:
 
 ## Function App Settings
 
-The module configures identity-friendly settings for the future Function App code:
+The module configures the identity-based settings expected by `ReadBotsFunction`:
 
-- `RobotOutputEventHub__fullyQualifiedNamespace`
-- `RobotOutputEventHub__credential`
 - `RobotOutputEventHubName`
 - `RobotOutputEventHubConsumerGroup`
-- `RobotOutputEventHub__eventHubName`
-- `RobotOutputEventHub__consumerGroup`
+- `RobotOutputEventHubIdentity__fullyQualifiedNamespace`
+- `RobotOutputEventHubIdentity__credential`
 - `ReadableBotNetwork__CosmosAccountEndpoint`
 - `ReadableBotNetwork__CosmosDatabaseName`
-- `ReadableBotNetwork__CosmosContainerName`
+- `ReadableBotNetwork__BotsContainerName`
+- `ReadableBotNetwork__DiagnosticsContainerName`
 - `ReadableBotNetwork__CosmosPartitionKey`
+- `ReadableBotNetwork__DiagnosticsPartitionKey`
 - `AzureWebJobsFeatureFlags`
 
 Deployment of the Function App code is intentionally out of scope for this module. CI can publish the compiled Function App to the `function_app_name` output.

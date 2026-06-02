@@ -83,6 +83,12 @@ variable "cosmos_container_name" {
   default     = "bots"
 }
 
+variable "cosmos_diagnostics_container_name" {
+  description = "Cosmos DB SQL container name for Function App event processing diagnostics."
+  type        = string
+  default     = "function-diagnostics"
+}
+
 variable "cosmos_partition_key_paths" {
   description = "Partition key path list for the bot documents. Keep /botId to match the read model contract."
   type        = list(string)
@@ -92,6 +98,12 @@ variable "cosmos_partition_key_paths" {
     condition     = length(var.cosmos_partition_key_paths) > 0
     error_message = "At least one Cosmos DB partition key path is required."
   }
+}
+
+variable "cosmos_diagnostics_partition_key_path" {
+  description = "Partition key path for Function App diagnostics documents."
+  type        = string
+  default     = "/id"
 }
 
 variable "cosmos_enable_serverless" {

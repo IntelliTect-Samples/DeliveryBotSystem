@@ -33,9 +33,19 @@ output "cosmos_container_name" {
   value       = azurerm_cosmosdb_sql_container.bots.name
 }
 
+output "cosmos_diagnostics_container_name" {
+  description = "Cosmos DB SQL container name for Function App event processing diagnostics."
+  value       = azurerm_cosmosdb_sql_container.diagnostics.name
+}
+
 output "cosmos_container_partition_key_paths" {
   description = "Partition key paths configured for the bots container."
   value       = azurerm_cosmosdb_sql_container.bots.partition_key_paths
+}
+
+output "cosmos_diagnostics_container_partition_key_paths" {
+  description = "Partition key paths configured for the diagnostics container."
+  value       = azurerm_cosmosdb_sql_container.diagnostics.partition_key_paths
 }
 
 output "eventhub_namespace_name" {
