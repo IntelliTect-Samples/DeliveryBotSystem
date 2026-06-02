@@ -1,0 +1,8 @@
+resource_group_name      = "ewu-deliverybotsystem-rg"
+location                 = "westus"
+container_app_env_name   = "managedEnvironment-ewudeliverybots-aa2f"
+acr_name                 = "DeliverybotCR"
+event_hub_namespace_name = "DeliverybotSimulator-EVHNS"
+container_app_name       = "deliverybot-robot-simulator"
+image_name               = "deliverybot-robot-simulator"
+image_tag                = "latest"
