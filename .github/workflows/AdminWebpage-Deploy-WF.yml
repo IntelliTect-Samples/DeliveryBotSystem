@@ -30,6 +30,7 @@ env:
   TFSTATE_CONTAINER: tfstate
   BOTNET_API_URL: https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io
   SIMULATOR_API_URL: https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io
+  ORDER_SERVICE_URL: https://deliverybot-order-service.mangocoast-332176b0.westus2.azurecontainerapps.io
 
 jobs:
   provision-and-deploy:
@@ -104,6 +105,7 @@ jobs:
         env:
           VITE_BOTNET_API_URL: ${{ env.BOTNET_API_URL }}
           VITE_SIMULATOR_API_URL: ${{ env.SIMULATOR_API_URL }}
+          VITE_ORDER_SERVICE_URL: ${{ env.ORDER_SERVICE_URL }}
         run: npm run build
 
       # ── 5. Deploy the build to the App Service ────────────────────────────

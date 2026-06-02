@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import BotsPage from './pages/BotsPage.jsx'
+import OrdersPage from './pages/OrdersPage.jsx'
 
 const tabs = [
   { id: 'bots', label: 'Bots' },
@@ -38,7 +39,7 @@ export default function App() {
 
       <main style={styles.main}>
         {active === 'bots' && <BotsPage />}
-        {active === 'orders' && <ComingSoon title="Order Status" upstream="#22 Order Service" />}
+        {active === 'orders' && <OrdersPage />}
         {active === 'config' && (
           <ComingSoon title="System Configuration" upstream="App Configuration Service" />
         )}
