@@ -1,8 +1,8 @@
 name: AdminWebpage-Deploy-WF
 
-# Provisions the Admin Web App App Service via Terraform, then builds and
-# deploys the React SPA to it. Auth uses the same OIDC federated identity
-# Phil configured for the BotNet API workflow, so no new secrets are needed.
+# Builds and deploys the Admin Web App React SPA to Azure App Service.
+# Infrastructure provisioning (App Service, etc.) is handled separately by the
+# common IaC workflow — this workflow only builds and deploys the app.
 
 on:
   workflow_dispatch:
@@ -10,13 +10,11 @@ on:
     branches: [main]
     paths:
       - "admin-webapp/**"
-      - "Iac/admin-webapp/**"
       - ".github/workflows/AdminWebpage-Deploy-WF.yml"
   push:
     branches: [main]
     paths:
       - "admin-webapp/**"
-      - "Iac/admin-webapp/**"
       - ".github/workflows/AdminWebpage-Deploy-WF.yml"
 
 permissions:
@@ -26,8 +24,6 @@ permissions:
 env:
   RESOURCE_GROUP: ewu-deliverybotsystem-rg
   APP_SERVICE_NAME: WA-DeliveryBot-Admin-dev
-  TFSTATE_STORAGE_ACCOUNT: dbstfstate01
-  TFSTATE_CONTAINER: tfstate
   BOTNET_API_URL: https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io
   SIMULATOR_API_URL: https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io
   ORDER_SERVICE_URL: https://deliverybot-order-service.mangocoast-332176b0.westus2.azurecontainerapps.io
@@ -39,7 +35,7 @@ env:
   ENTRA_ADMIN_GROUP_ID: ""
 
 jobs:
-  provision-and-deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -54,43 +50,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ── 2. Ensure the Terraform state container exists ────────────────────
-      # `az storage container create` is idempotent; safe to run every time.
-      - name: Ensure TF state container exists
-        run: |
-          az storage container create \
-            --name "$TFSTATE_CONTAINER" \
-            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
-            --auth-mode login \
-            --only-show-errors
-
-      # ── 3. Provision App Service via Terraform ────────────────────────────
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.9.5"
-
-      - name: Terraform Init
-        working-directory: ./Iac/admin-webapp
-        env:
-          ARM_USE_OIDC: "true"
-          ARM_USE_AZUREAD: "true"
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        run: terraform init -input=false
-
-      - name: Terraform Apply
-        working-directory: ./Iac/admin-webapp
-        env:
-          ARM_USE_OIDC: "true"
-          ARM_USE_AZUREAD: "true"
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        run: terraform apply -input=false -auto-approve
-
-      # ── 4. Build the SPA with upstream URLs baked in ──────────────────────
+      # ── 2. Build the SPA with upstream URLs baked in ──────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -117,7 +77,7 @@ jobs:
           VITE_ENTRA_ADMIN_GROUP_ID: ${{ env.ENTRA_ADMIN_GROUP_ID }}
         run: npm run build
 
-      # ── 5. Deploy the build to the App Service ────────────────────────────
+      # ── 3. Deploy the build to the App Service ─────────────────────────────
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
