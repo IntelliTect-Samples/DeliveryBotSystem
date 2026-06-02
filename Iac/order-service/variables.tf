@@ -41,9 +41,27 @@ variable "sql_connection_string" {
 }
 
 variable "eventhub_connection_string" {
-  description = "Connection string for the robot-input Event Hub — passed in from the CD pipeline, never committed."
+  description = "Namespace-level Event Hub connection string — passed in from the CD pipeline, never committed. Used to publish to robot-input AND to consume robot-output (Listen) for order status updates."
   type        = string
   sensitive   = true
+}
+
+variable "event_hub_namespace_name" {
+  description = "Event Hub namespace hosting the simulator's robot-input/robot-output hubs."
+  type        = string
+  default     = "DeliverybotSimulator-EVHNS"
+}
+
+variable "status_event_hub_name" {
+  description = "Hub the simulator publishes bot status events to; the Order Service consumes it to advance order status (#41)."
+  type        = string
+  default     = "robot-output"
+}
+
+variable "status_consumer_group_name" {
+  description = "Dedicated consumer group the Order Service reads status events with — kept separate from $Default and other features."
+  type        = string
+  default     = "order-service"
 }
 
 variable "tags" {
