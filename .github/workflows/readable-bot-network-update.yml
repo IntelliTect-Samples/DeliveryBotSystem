@@ -1,0 +1,141 @@
+name: Update Readable Bot Network
+
+# Updates only the Readable Bot Network Function App code and Cosmos DB read-model
+# containers. This workflow does not deploy customer/admin/order APIs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ReadBotsFunction/**"
+      - "ReadableBotState/**"
+      - "ReadableBotState.Tests/**"
+      - "Iac/modules/readable-bot-network-representation/**"
+      - "Iac/drivers/readable-bot-network-dev/**"
+      - ".github/workflows/readable-bot-network-update.yml"
+  workflow_dispatch:
+    inputs:
+      update_cosmos:
+        description: "Ensure Cosmos DB database and containers exist"
+        required: true
+        default: true
+        type: boolean
+      deploy_function:
+        description: "Build and deploy the ReadBotsFunction app"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  FUNCTION_APP_NAME: deliverybot-rbnr-dev-rbnr-func-mtgpw6
+  COSMOS_ACCOUNT_NAME: deliverybot-rbnr-dev-rbnr-mtgpw6
+  COSMOS_DATABASE_NAME: bot-network
+  BOTS_CONTAINER_NAME: bots
+  DIAGNOSTICS_CONTAINER_NAME: function-diagnostics
+
+jobs:
+  update-cosmos:
+    name: Update Cosmos DB Read Model
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.update_cosmos
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Cosmos database exists
+        run: |
+          if az cosmosdb sql database show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --name "$COSMOS_DATABASE_NAME" \
+            --only-show-errors > /dev/null 2>&1; then
+            echo "Cosmos database already exists: $COSMOS_DATABASE_NAME"
+            exit 0
+          fi
+
+          az cosmosdb sql database create \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --name "$COSMOS_DATABASE_NAME"
+
+      - name: Ensure bots container exists
+        run: |
+          if az cosmosdb sql container show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --database-name "$COSMOS_DATABASE_NAME" \
+            --name "$BOTS_CONTAINER_NAME" \
+            --only-show-errors > /dev/null 2>&1; then
+            echo "Cosmos container already exists: $BOTS_CONTAINER_NAME"
+            exit 0
+          fi
+
+          az cosmosdb sql container create \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --database-name "$COSMOS_DATABASE_NAME" \
+            --name "$BOTS_CONTAINER_NAME" \
+            --partition-key-path "/botId"
+
+      - name: Ensure diagnostics container exists
+        run: |
+          if az cosmosdb sql container show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --database-name "$COSMOS_DATABASE_NAME" \
+            --name "$DIAGNOSTICS_CONTAINER_NAME" \
+            --only-show-errors > /dev/null 2>&1; then
+            echo "Cosmos container already exists: $DIAGNOSTICS_CONTAINER_NAME"
+            exit 0
+          fi
+
+          az cosmosdb sql container create \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$COSMOS_ACCOUNT_NAME" \
+            --database-name "$COSMOS_DATABASE_NAME" \
+            --name "$DIAGNOSTICS_CONTAINER_NAME" \
+            --partition-key-path "/id"
+
+  deploy-function:
+    name: Deploy ReadBotsFunction
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy_function
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run read model tests
+        run: dotnet test ReadableBotState.Tests/ReadableBotState.Tests.csproj --configuration Release
+
+      - name: Publish Function App
+        run: |
+          dotnet publish ReadBotsFunction/ReadBotsFunction.csproj \
+            --configuration Release \
+            --output ./readbotsfunction-publish
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Function package
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.FUNCTION_APP_NAME }}
+          package: ./readbotsfunction-publish
