@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import BotsPage from './pages/BotsPage.jsx'
 import OrdersPage from './pages/OrdersPage.jsx'
+import AuthGate from './auth/AuthGate.jsx'
+import UserMenu from './components/UserMenu.jsx'
+import { authEnabled } from './auth/authConfig.js'
 
 const tabs = [
   { id: 'bots', label: 'Bots' },
@@ -12,39 +15,42 @@ export default function App() {
   const [active, setActive] = useState('bots')
 
   return (
-    <div style={styles.shell}>
-      <nav style={styles.nav}>
-        <div style={styles.brand}>
-          <span style={styles.brandMark}>🤖</span>
-          <div>
-            <h2 style={styles.brandTitle}>DeliveryBot Admin</h2>
-            <p style={styles.brandSub}>Issue #18 · WIP</p>
+    <AuthGate>
+      <div style={styles.shell}>
+        <nav style={styles.nav}>
+          <div style={styles.brand}>
+            <span style={styles.brandMark}>🤖</span>
+            <div>
+              <h2 style={styles.brandTitle}>DeliveryBot Admin</h2>
+              <p style={styles.brandSub}>Issue #18 · WIP</p>
+            </div>
           </div>
-        </div>
-        <div style={styles.tabs}>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActive(t.id)}
-              style={{
-                ...styles.tab,
-                ...(active === t.id ? styles.tabActive : null),
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+          <div style={styles.tabs}>
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActive(t.id)}
+                style={{
+                  ...styles.tab,
+                  ...(active === t.id ? styles.tabActive : null),
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {authEnabled && <UserMenu />}
+        </nav>
 
-      <main style={styles.main}>
-        {active === 'bots' && <BotsPage />}
-        {active === 'orders' && <OrdersPage />}
-        {active === 'config' && (
-          <ComingSoon title="System Configuration" upstream="App Configuration Service" />
-        )}
-      </main>
-    </div>
+        <main style={styles.main}>
+          {active === 'bots' && <BotsPage />}
+          {active === 'orders' && <OrdersPage />}
+          {active === 'config' && (
+            <ComingSoon title="System Configuration" upstream="App Configuration Service" />
+          )}
+        </main>
+      </div>
+    </AuthGate>
   )
 }
 

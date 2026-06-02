@@ -4,6 +4,8 @@
 // Falls back to clearly-labeled mock data when VITE_ORDER_SERVICE_URL is unset
 // so the admin app can be demoed without the Order Service deployed.
 
+import { getAuthHeaders } from '../auth/token.js'
+
 const baseUrl = (import.meta.env.VITE_ORDER_SERVICE_URL ?? '').replace(/\/+$/, '')
 
 // Mirrors the OrderStatus enum in OrderService/Models/OrderStatus.cs.
@@ -64,7 +66,11 @@ async function callOrMock(path, init, mockResult) {
     return { data: mockResult, source: 'mock' }
   }
   try {
-    const res = await fetch(`${baseUrl}${path}`, init)
+    const authHeaders = await getAuthHeaders()
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { ...(init?.headers), ...authHeaders },
+    })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = res.status === 204 ? null : await res.json()
     return { data, source: 'api' }
