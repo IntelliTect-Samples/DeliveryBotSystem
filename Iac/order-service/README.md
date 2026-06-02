@@ -25,9 +25,14 @@ order-service/
   - a **system-assigned managed identity**
   - **ACR pull** via the `acr-password` secret + `registry` block (admin creds)
   - external **ingress** on port 8080
-  - env vars: `ASPNETCORE_ENVIRONMENT`, `BotNetApi__BaseUrl`
+  - env vars: `ASPNETCORE_ENVIRONMENT`, `BotNetApi__BaseUrl`,
+    `StatusConsumer__EventHubName` (`robot-output`),
+    `StatusConsumer__ConsumerGroup` (`order-service`)
   - secret-backed env vars: `ConnectionStrings__DefaultConnection`,
-    `EventHub__ConnectionString`
+    `EventHub__ConnectionString`, `StatusConsumer__ConnectionString`
+- `azurerm_eventhub_consumer_group.order_service_status` — a dedicated
+  `order-service` consumer group on the simulator's `robot-output` hub, which the
+  app's status consumer reads to advance order status (#41).
 
 The **image tag is owned by the CD pipeline**, not Terraform — the module sets
 an initial `:latest` image and `ignore_changes` on it so `terraform apply`

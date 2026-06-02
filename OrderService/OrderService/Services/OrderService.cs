@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OrderService.Data;
 using OrderService.DTOs;
+using OrderService.Events;
 using OrderService.Models;
 
 namespace OrderService.Services;
@@ -86,6 +87,36 @@ public class OrderService : IOrderService
             .ToListAsync();
 
         return orders.Select(ToResponseDto);
+    }
+
+    public async Task ApplyStatusEventAsync(RobotEventEnvelope evt, CancellationToken ct = default)
+    {
+        // Never react to events we published ourselves (RobotOrderAssignment).
+        if (string.Equals(evt.Source, "order-service", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        foreach (var change in OrderStatusMapping.Map(evt))
+        {
+            if (!Guid.TryParse(change.OrderId, out var orderId))
+                continue;
+
+            var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, ct);
+            if (order is null)
+                continue; // event for an order we don't own (or not yet persisted)
+
+            // Forward-only: ignore duplicate/out-of-order events that would regress status.
+            if (!OrderStatusMapping.IsForward(order.Status, change.Status))
+                continue;
+
+            var previous = order.Status;
+            order.Status = change.Status;
+            order.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation(
+                "Order status updated from bot event. OrderId={OrderId} {From}->{To} EventType={EventType}",
+                order.Id, previous, change.Status, evt.EventType);
+        }
     }
 
     // Calls OpenStreetMap Nominatim to convert a text address to GPS coordinates.
