@@ -26,6 +26,13 @@ env:
   APP_SERVICE_NAME: WA-DeliveryBot-Admin-dev
   BOTNET_API_URL: https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io
   SIMULATOR_API_URL: https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io
+  ORDER_SERVICE_URL: https://deliverybot-order-service.mangocoast-332176b0.westus2.azurecontainerapps.io
+  # Entra ID staff sign-in (issue #54). Blank → auth disabled (app runs open).
+  # Fill these in from the app registration to switch sign-in on, then push.
+  # Client/tenant/group IDs are not secrets (a public SPA exposes them anyway).
+  ENTRA_CLIENT_ID: "b5a029c3-d046-4005-9497-23ba18df70b2"
+  ENTRA_TENANT_ID: "37321907-14a5-4390-987d-ec0c66c655cd"
+  ENTRA_ADMIN_GROUP_ID: "14fcd995-e89f-4020-b5ff-4a9b48a5824e"
 
 jobs:
   build-and-deploy:
@@ -64,6 +71,10 @@ jobs:
         env:
           VITE_BOTNET_API_URL: ${{ env.BOTNET_API_URL }}
           VITE_SIMULATOR_API_URL: ${{ env.SIMULATOR_API_URL }}
+          VITE_ORDER_SERVICE_URL: ${{ env.ORDER_SERVICE_URL }}
+          VITE_ENTRA_CLIENT_ID: ${{ env.ENTRA_CLIENT_ID }}
+          VITE_ENTRA_TENANT_ID: ${{ env.ENTRA_TENANT_ID }}
+          VITE_ENTRA_ADMIN_GROUP_ID: ${{ env.ENTRA_ADMIN_GROUP_ID }}
         run: npm run build
 
       # ── 3. Deploy the build to the App Service ─────────────────────────────

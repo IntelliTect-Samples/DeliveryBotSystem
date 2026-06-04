@@ -3,6 +3,8 @@
 // If the API is unreachable, calls fall back to mock data so the admin app can
 // be demoed without the backend deployed.
 
+import { getAuthHeaders } from '../auth/token.js'
+
 const baseUrl = (import.meta.env.VITE_BOTNET_API_URL ?? '').replace(/\/+$/, '')
 
 const mockBots = [
@@ -45,7 +47,11 @@ async function callOrMock(path, init, mockResult) {
     return { data: mockResult, source: 'mock' }
   }
   try {
-    const res = await fetch(`${baseUrl}${path}`, init)
+    const authHeaders = await getAuthHeaders()
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { ...(init?.headers), ...authHeaders },
+    })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = res.status === 204 ? null : await res.json()
     return { data, source: 'api' }

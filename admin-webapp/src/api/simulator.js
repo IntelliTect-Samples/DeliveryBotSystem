@@ -3,6 +3,8 @@
 // Falls back to a no-op when VITE_SIMULATOR_API_URL is unset so the admin app
 // still works against BotNet alone.
 
+import { getAuthHeaders } from '../auth/token.js'
+
 const baseUrl = (import.meta.env.VITE_SIMULATOR_API_URL ?? '').replace(/\/+$/, '')
 
 // Spokane city center, used as the default location for newly registered bots.
@@ -24,7 +26,11 @@ async function call(path, init) {
     return { ok: false, skipped: true, reason: 'Simulator URL not configured' }
   }
   try {
-    const res = await fetch(`${baseUrl}${path}`, init)
+    const authHeaders = await getAuthHeaders()
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { ...(init?.headers), ...authHeaders },
+    })
     if (!res.ok) {
       let detail = `HTTP ${res.status}`
       try {

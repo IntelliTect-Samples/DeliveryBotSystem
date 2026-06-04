@@ -11,6 +11,8 @@ import {
   updateBot as botnetUpdate,
   deleteBot as botnetDelete,
   listBots as botnetList,
+  rechargeBot as botnetRecharge,
+  updateServicingStatus as botnetServicing,
 } from './bots.js'
 
 import {
@@ -71,6 +73,32 @@ export async function removeBot(id, name) {
   const botId = toBotId(name)
   const simResult = await deleteSimulatorBot(botId)
   return { botnet: botnetResult, simulator: simResult }
+}
+
+// #51 Quick-action: recharge. BotNet sets the battery to 100; mirror that to
+// the simulator's powerLevel so the runtime bot reflects the recharge.
+export async function rechargeBot(id, name) {
+  const botnetResult = await botnetRecharge(id)
+  if (botnetResult.error) {
+    return { botnet: botnetResult, simulator: null }
+  }
+  if (!simulatorConfig.configured) {
+    return { botnet: botnetResult, simulator: { ok: false, skipped: true } }
+  }
+  const botId = toBotId(name)
+  const simResult = await updateSimulatorBot(botId, { powerLevel: 100 })
+  return { botnet: botnetResult, simulator: simResult }
+}
+
+// #51 Quick-action: toggle servicing status. BotNet is the source of truth.
+// The simulator's UpdateBotRequest exposes no settable status field (BotStatus
+// is managed internally by the simulation), so this is a BotNet-only write.
+export async function setServicingStatus(id, isServicingCustomer) {
+  const botnetResult = await botnetServicing(id, isServicingCustomer)
+  return {
+    botnet: botnetResult,
+    simulator: { ok: true, skipped: true, reason: 'Simulator has no settable status field' },
+  }
 }
 
 export { simulatorConfig }

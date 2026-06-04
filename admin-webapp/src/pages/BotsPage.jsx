@@ -4,9 +4,11 @@ import {
   registerBot,
   modifyBot,
   removeBot,
+  rechargeBot,
+  setServicingStatus,
   simulatorConfig,
 } from '../api/admin.js'
-import { apiConfig as botnetConfig, rechargeBot, updateServicingStatus } from '../api/bots.js'
+import { apiConfig as botnetConfig } from '../api/bots.js'
 import BotDialog from '../components/BotDialog.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 
@@ -45,16 +47,27 @@ export default function BotsPage() {
     refresh()
   }, [refresh])
 
-  async function onRecharge(id) {
-    setBusyId(id)
-    await rechargeBot(id)
+  // #51 Quick-action: recharge (double-writes battery=100 to BotNet + simulator)
+  async function onRecharge(bot) {
+    setBusyId(bot.id)
+    const result = await rechargeBot(bot.id, bot.name)
+    const sim = result?.simulator
+    if (!result?.botnet?.error && sim && !sim.ok && !sim.skipped) {
+      setBanner({
+        tone: 'warn',
+        text: `Bot #${bot.id} recharged in BotNet, but simulator sync failed: ${sim.error || 'unknown error'}.`,
+      })
+    } else {
+      setBanner(null)
+    }
     await refresh()
     setBusyId(null)
   }
 
+  // #51 Quick-action: toggle servicing status (BotNet-only — see admin.js)
   async function onToggleServicing(bot) {
     setBusyId(bot.id)
-    await updateServicingStatus(bot.id, !bot.isServicingCustomer)
+    await setServicingStatus(bot.id, !bot.isServicingCustomer)
     await refresh()
     setBusyId(null)
   }
@@ -209,7 +222,7 @@ export default function BotsPage() {
                     </button>
                     <button
                       style={styles.actionBtn}
-                      onClick={() => onRecharge(bot.id)}
+                      onClick={() => onRecharge(bot)}
                       disabled={busyId === bot.id || bot.batteryLevel === 100}
                     >
                       Recharge

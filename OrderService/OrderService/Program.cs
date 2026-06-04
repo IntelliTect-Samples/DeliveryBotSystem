@@ -32,6 +32,19 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ── CORS ─────────────────────────────────────────────────────────────────────
+// Allow the Admin & Maintenance App (issue #18, Orders view #53) to call this
+// API from the browser.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AdminApp", policy =>
+        policy.WithOrigins(
+                  "https://wa-deliverybot-admin-dev.azurewebsites.net", // deployed admin app
+                  "http://localhost:5173")                              // local Vite dev server
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 // ── Auto-migrate on startup ────────────────────────────────────────────────────
@@ -56,6 +69,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+app.UseCors("AdminApp");
 app.MapControllers();
 
 app.Run();

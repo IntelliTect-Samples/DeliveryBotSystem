@@ -34,11 +34,14 @@ public class OrdersController : ControllerBase
         return order is null ? NotFound() : Ok(order);
     }
 
-    // GET /api/orders?customerId=xxx — returns full order history for a customer
+    // GET /api/orders — returns all orders (admin view, issue #53)
+    // GET /api/orders?customerId=xxx — returns full order history for one customer
     [HttpGet]
-    public async Task<IActionResult> GetOrderHistory([FromQuery] string customerId)
+    public async Task<IActionResult> GetOrders([FromQuery] string? customerId)
     {
-        var orders = await _orderService.GetOrderHistoryAsync(customerId);
+        var orders = string.IsNullOrWhiteSpace(customerId)
+            ? await _orderService.GetAllOrdersAsync()
+            : await _orderService.GetOrderHistoryAsync(customerId);
         return Ok(orders);
     }
 }

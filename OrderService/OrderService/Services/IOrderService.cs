@@ -9,6 +9,7 @@ public interface IOrderService
     Task<OrderResponseDto> PlaceOrderAsync(PlaceOrderDto dto);
     Task<OrderResponseDto?> GetOrderAsync(Guid id);
     Task<IEnumerable<OrderResponseDto>> GetOrderHistoryAsync(string customerId);
+    Task<IEnumerable<OrderResponseDto>> GetAllOrdersAsync();
 
     // Advances order status in response to a bot event from the simulator (#41).
     Task ApplyStatusEventAsync(RobotEventEnvelope evt, CancellationToken ct = default);
