@@ -51,6 +51,8 @@ module "order_service_app" {
   secrets = {
     "sql-connection-string"      = var.sql_connection_string
     "eventhub-connection-string" = var.eventhub_connection_string
+    # Foundry key — temporary until the managed-identity role grant is in place (#43).
+    "foundry-api-key" = azurerm_cognitive_account.foundry.primary_access_key
   }
 
   env_vars = {
@@ -58,6 +60,9 @@ module "order_service_app" {
     "BotNetApi__BaseUrl"            = var.botnet_api_url
     "StatusConsumer__EventHubName"  = var.status_event_hub_name
     "StatusConsumer__ConsumerGroup" = azurerm_eventhub_consumer_group.order_service_status.name
+    # AI Delivery Concierge — keyless: the app's managed identity calls Foundry (#43).
+    "Foundry__Endpoint"   = azurerm_cognitive_account.foundry.endpoint
+    "Foundry__Deployment" = azurerm_cognitive_deployment.concierge.name
   }
 
   secret_env_vars = {
@@ -67,6 +72,8 @@ module "order_service_app" {
     # all hubs in the namespace, incl. robot-output. If it is later scoped to a
     # Listen-only SAS, introduce a separate secret/variable for this.
     "StatusConsumer__ConnectionString" = "eventhub-connection-string"
+    # Foundry key (temporary — see foundry.tf). App prefers managed identity when this is absent.
+    "Foundry__ApiKey" = "foundry-api-key"
   }
 
   tags = var.tags

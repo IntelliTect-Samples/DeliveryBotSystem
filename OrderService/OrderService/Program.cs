@@ -14,6 +14,8 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 
 // ── Services ───────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IOrderService, OrderService.Services.OrderService>();
+// AI Delivery Concierge — Azure AI Foundry via managed identity, keyless (#43).
+builder.Services.AddSingleton<IDeliveryConciergeService, DeliveryConciergeService>();
 // Consumes bot events from Event Hub and advances order status (#41).
 builder.Services.AddHostedService<OrderStatusConsumer>();
 builder.Services.AddHttpClient();

@@ -70,7 +70,9 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
 
-      # Apply only on merge to main — PRs stop at plan for review.
+      # Apply on merge to main, or on a manual run (workflow_dispatch) so the
+      # Foundry stack can be deployed from a feature branch without a main merge.
+      # PRs still stop at plan for review.
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         run: terraform apply -input=false tfplan

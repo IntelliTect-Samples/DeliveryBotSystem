@@ -12,3 +12,8 @@ output "managed_identity_principal_id" {
   description = "Principal ID of the app's system-assigned identity — grant this AcrPull and a SQL user."
   value       = module.order_service_app.identity_principal_id
 }
+
+output "foundry_endpoint" {
+  description = "Azure AI Foundry (Azure OpenAI) endpoint the Order Service calls keyless via managed identity (#43)."
+  value       = azurerm_cognitive_account.foundry.endpoint
+}

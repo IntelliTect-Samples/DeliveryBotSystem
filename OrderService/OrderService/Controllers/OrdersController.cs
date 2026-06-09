@@ -41,4 +41,23 @@ public class OrdersController : ControllerBase
         var orders = await _orderService.GetOrderHistoryAsync(customerId);
         return Ok(orders);
     }
+
+    // POST /api/orders/{id}/ask — ask the AI concierge a question about this order (#43)
+    [HttpPost("{id:guid}/ask")]
+    public async Task<IActionResult> Ask(Guid id, [FromBody] AskQuestionDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto?.Question))
+            return BadRequest("Question is required.");
+
+        var answer = await _orderService.AskAboutOrderAsync(id, dto.Question);
+        return answer is null ? NotFound() : Ok(new { answer });
+    }
+
+    // GET /api/orders/{id}/updates — AI-generated status update history for this order (#43)
+    [HttpGet("{id:guid}/updates")]
+    public async Task<IActionResult> Updates(Guid id)
+    {
+        var updates = await _orderService.GetOrderUpdatesAsync(id);
+        return Ok(updates);
+    }
 }

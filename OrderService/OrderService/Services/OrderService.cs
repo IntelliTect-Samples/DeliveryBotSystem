@@ -17,17 +17,20 @@ public class OrderService : IOrderService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
     private readonly ILogger<OrderService> _logger;
+    private readonly IDeliveryConciergeService _concierge;
 
     public OrderService(
         OrderDbContext db,
         IHttpClientFactory httpClientFactory,
         IConfiguration config,
-        ILogger<OrderService> logger)
+        ILogger<OrderService> logger,
+        IDeliveryConciergeService concierge)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
         _config = config;
         _logger = logger;
+        _concierge = concierge;
     }
 
     public async Task<OrderResponseDto> PlaceOrderAsync(PlaceOrderDto dto)
@@ -100,7 +103,7 @@ public class OrderService : IOrderService
             if (!Guid.TryParse(change.OrderId, out var orderId))
                 continue;
 
-            var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, ct);
+            var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId, ct);
             if (order is null)
                 continue; // event for an order we don't own (or not yet persisted)
 
@@ -116,7 +119,44 @@ public class OrderService : IOrderService
             _logger.LogInformation(
                 "Order status updated from bot event. OrderId={OrderId} {From}->{To} EventType={EventType}",
                 order.Id, previous, change.Status, evt.EventType);
+
+            // Generate a friendly, AI-written update for the customer (#43). Best-effort:
+            // a Foundry hiccup must never break status processing, so it returns null on failure.
+            var message = await _concierge.GenerateStatusMessageAsync(order, previous, change.Status, ct);
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                _db.OrderStatusUpdates.Add(new OrderStatusUpdate
+                {
+                    OrderId = order.Id,
+                    Status = change.Status,
+                    Message = message
+                });
+                await _db.SaveChangesAsync(ct);
+            }
         }
+    }
+
+    public async Task<string?> AskAboutOrderAsync(Guid id, string question, CancellationToken ct = default)
+    {
+        var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (order is null)
+            return null;
+
+        return await _concierge.AnswerQuestionAsync(order, question, ct);
+    }
+
+    public async Task<IEnumerable<OrderStatusUpdateDto>> GetOrderUpdatesAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _db.OrderStatusUpdates
+            .Where(u => u.OrderId == id)
+            .OrderBy(u => u.CreatedAt)
+            .Select(u => new OrderStatusUpdateDto
+            {
+                Status = u.Status.ToString(),
+                Message = u.Message,
+                CreatedAt = u.CreatedAt
+            })
+            .ToListAsync(ct);
     }
 
     // Calls OpenStreetMap Nominatim to convert a text address to GPS coordinates.

@@ -11,6 +11,7 @@ public class OrderDbContext : DbContext
 
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<OrderStatusUpdate> OrderStatusUpdates => Set<OrderStatusUpdate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +31,17 @@ public class OrderDbContext : DbContext
         {
             entity.HasKey(i => i.Id);
             entity.Property(i => i.ItemId).IsRequired().HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<OrderStatusUpdate>(entity =>
+        {
+            entity.HasKey(u => u.Id);
+            entity.Property(u => u.Status).HasConversion<string>();
+            entity.Property(u => u.Message).HasMaxLength(1000);
+            entity.HasOne(u => u.Order)
+                  .WithMany()
+                  .HasForeignKey(u => u.OrderId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

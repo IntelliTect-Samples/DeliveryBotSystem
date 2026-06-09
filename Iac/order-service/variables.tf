@@ -74,3 +74,41 @@ variable "tags" {
     issue     = "#43"
   }
 }
+
+# ── AI Delivery Concierge (Azure AI Foundry) ──────────────────────────────────
+
+variable "foundry_account_name" {
+  description = "Name of the Azure AI Foundry (Azure OpenAI) account for the AI concierge. Must be globally unique."
+  type        = string
+  default     = "deliverybot-orderservice-aoai"
+}
+
+variable "foundry_location" {
+  description = "Region for the Foundry account. Must offer the model — gpt-4o-mini is NOT in westus2 (the RG's region), so default to eastus. The app calls it over HTTPS regardless of region."
+  type        = string
+  default     = "eastus"
+}
+
+variable "foundry_deployment_name" {
+  description = "Model deployment name the Order Service references (Foundry:Deployment)."
+  type        = string
+  default     = "gpt-4o-mini"
+}
+
+variable "foundry_model_name" {
+  description = "Azure OpenAI model to deploy."
+  type        = string
+  default     = "gpt-4o-mini"
+}
+
+variable "foundry_model_version" {
+  description = "Model version. Check region availability if a deployment fails."
+  type        = string
+  default     = "2024-07-18"
+}
+
+variable "foundry_capacity" {
+  description = "Deployment capacity in thousands of tokens-per-minute (TPM)."
+  type        = number
+  default     = 10
+}
