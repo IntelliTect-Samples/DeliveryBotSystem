@@ -20,11 +20,43 @@ import {
   createSimulatorBot,
   updateSimulatorBot,
   deleteSimulatorBot,
+  listSimulatorBots,
   simulatorConfig,
 } from './simulator.js'
 
 export async function listBots() {
   return botnetList()
+}
+
+// Live fleet view: the BotNet registry enriched with the simulator's live
+// runtime telemetry (power level, status, location), matched by botId. Both
+// calls run concurrently and the simulator side is best-effort — if it's
+// unreachable, bots come back with `telemetry: null` and the registry view
+// still renders.
+export async function listBotsWithTelemetry() {
+  const [botnetResult, simResult] = await Promise.all([
+    botnetList(),
+    listSimulatorBots(),
+  ])
+
+  const simBots = simResult?.ok && Array.isArray(simResult.data) ? simResult.data : []
+  const byBotId = new Map(simBots.map((b) => [b.botId, b]))
+
+  const data = (Array.isArray(botnetResult.data) ? botnetResult.data : []).map((bot) => {
+    const t = byBotId.get(toBotId(bot.name))
+    return {
+      ...bot,
+      telemetry: t
+        ? { powerLevel: t.powerLevel, status: t.status, location: t.currentLocation }
+        : null,
+    }
+  })
+
+  return {
+    data,
+    source: botnetResult.source,
+    simulatorReachable: Boolean(simResult?.ok),
+  }
 }
 
 export async function registerBot({ name, batteryLevel = 100, isOnline = true }) {
