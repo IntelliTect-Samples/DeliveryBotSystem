@@ -1,9 +1,3 @@
-# Reusable module: a Linux App Service that hosts a static SPA via pm2.
-#
-# Reuses an existing resource group and App Service Plan (passed by name) so
-# the team isn't billed for a duplicate plan. The only managed resource is the
-# App Service itself.
-
 terraform {
   required_providers {
     azurerm = {
@@ -17,16 +11,11 @@ data "azurerm_resource_group" "rg" {
   name = var.resource_group_name
 }
 
-data "azurerm_service_plan" "plan" {
-  name                = var.app_service_plan_name
-  resource_group_name = data.azurerm_resource_group.rg.name
-}
-
 resource "azurerm_linux_web_app" "frontend" {
   name                = var.app_service_name
   resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_service_plan.plan.location
-  service_plan_id     = data.azurerm_service_plan.plan.id
+  location            = var.location
+  service_plan_id     = var.app_service_plan_id
   https_only          = true
 
   identity {
@@ -41,7 +30,6 @@ resource "azurerm_linux_web_app" "frontend" {
       node_version = var.node_version
     }
 
-    # Allow the GitHub Actions workflow to push builds.
     scm_use_main_ip_restriction = true
   }
 
@@ -53,7 +41,6 @@ resource "azurerm_linux_web_app" "frontend" {
 
   lifecycle {
     ignore_changes = [
-      # Deployments overwrite the build artifact; don't fight the workflow.
       app_settings["WEBSITE_RUN_FROM_PACKAGE"],
     ]
   }

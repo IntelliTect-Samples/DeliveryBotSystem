@@ -1,10 +1,15 @@
 variable "resource_group_name" {
-  description = "Resource group that hosts the team's DeliveryBot resources."
+  description = "Resource group that hosts the DeliveryBot resources."
   type        = string
 }
 
-variable "app_service_plan_name" {
-  description = "Existing App Service Plan to reuse (shared with the Customer site to keep cost down)."
+variable "location" {
+  description = "Region for the App Service Plan and admin app."
+  type        = string
+}
+
+variable "app_service_plan_id" {
+  description = "Resource ID of the shared App Service Plan."
   type        = string
 }
 
@@ -19,12 +24,12 @@ variable "node_version" {
 }
 
 variable "botnet_api_url" {
-  description = "Public URL of the BotNet API (Container App), baked into the SPA at build time."
+  description = "Public URL of the BotNet API baked into the SPA at build time."
   type        = string
 }
 
 variable "simulator_api_url" {
-  description = "Public URL of the Robot Simulator (Container App), baked into the SPA at build time."
+  description = "Public URL of the Robot Simulator baked into the SPA at build time."
   type        = string
 }
 

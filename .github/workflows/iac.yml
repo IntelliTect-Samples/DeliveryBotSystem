@@ -30,8 +30,10 @@ permissions:
   contents: read
 
 env:
-  TFSTATE_STORAGE_ACCOUNT: dbstfstate01
-  TFSTATE_CONTAINER: tfstate
+  TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+  TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+  TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
+  TFSTATE_KEY: ${{ vars.TFSTATE_KEY || 'deliverybot-final.tfstate' }}
 
 jobs:
   terraform:
@@ -59,6 +61,9 @@ jobs:
 
       # Event Hub — shared by Order Service and Robot Simulator.
       TF_VAR_eventhub_connection_string: ${{ secrets.AZURE_EVENTHUB_CONNECTION_STRING }}
+      TF_VAR_azure_openai_endpoint: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+      TF_VAR_azure_openai_deployment: ${{ vars.AZURE_OPENAI_DEPLOYMENT }}
+      TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -112,7 +117,14 @@ jobs:
           terraform_version: "1.9.5"
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TFSTATE_CONTAINER" \
+            -backend-config="key=$TFSTATE_KEY" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan

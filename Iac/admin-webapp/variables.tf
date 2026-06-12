@@ -1,25 +1,24 @@
 variable "resource_group_name" {
-  description = "Resource group that hosts the team's DeliveryBot resources."
+  description = "Resource group that hosts the DeliveryBot resources."
   type        = string
-  default     = "ewu-deliverybotsystem-rg"
+  default     = "deliverybot-rg"
 }
 
-variable "app_service_plan_name" {
-  description = "Existing App Service Plan to reuse (shared with the Customer site to keep cost down)."
+variable "location" {
+  description = "Region for the shared App Service Plan and admin app."
   type        = string
-  default     = "ASP-RGDeliveryBotdev-8b82"
+  default     = "westus2"
+}
+
+variable "app_service_plan_id" {
+  description = "Resource ID of the shared App Service Plan."
+  type        = string
 }
 
 variable "app_service_name" {
   description = "Globally-unique name for the Admin Web App App Service."
   type        = string
-  default     = "WA-DeliveryBot-Admin-dev"
-}
-
-variable "location" {
-  description = "Region for the App Service. Must match the existing plan."
-  type        = string
-  default     = "canadacentral"
+  default     = "wa-deliverybot-admin-dev"
 }
 
 variable "node_version" {
@@ -29,15 +28,15 @@ variable "node_version" {
 }
 
 variable "botnet_api_url" {
-  description = "Public URL of the BotNet API (Container App), baked into the SPA at build time."
+  description = "Public URL of the BotNet API baked into the SPA at build time."
   type        = string
-  default     = "https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io"
+  default     = "https://deliverybot-botapi-dev.example.com"
 }
 
 variable "simulator_api_url" {
-  description = "Public URL of the Robot Simulator (Container App), baked into the SPA at build time."
+  description = "Public URL of the Robot Simulator baked into the SPA at build time."
   type        = string
-  default     = "https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io"
+  default     = "https://deliverybot-simulator-dev.example.com"
 }
 
 variable "tags" {
@@ -46,7 +45,5 @@ variable "tags" {
   default = {
     project   = "DeliveryBot"
     component = "admin-webapp"
-    owner     = "CarsonL15"
-    issue     = "#18"
   }
 }

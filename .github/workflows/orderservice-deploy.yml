@@ -24,10 +24,10 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ewu-deliverybotsystem-rg
-  ACR_NAME: DeliverybotCR
-  ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
-  CONTAINER_APP_NAME: deliverybot-order-service
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  CONTAINER_APP_NAME: ${{ vars.ORDER_SERVICE_CONTAINER_APP_NAME }}
   IMAGE_NAME: orderservice
 
 jobs:

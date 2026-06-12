@@ -7,19 +7,19 @@ variable "resource_group_name" {
 variable "container_app_environment_name" {
   description = "Existing shared Container App Environment (managed by shared-infra)."
   type        = string
-  default     = "managedEnvironment-ewudeliverybots-aa2f"
+  default     = "deliverybot-dev-cae"
 }
 
 variable "acr_name" {
   description = "Existing shared Azure Container Registry (managed by shared-infra)."
   type        = string
-  default     = "DeliverybotCR"
+  default     = "deliverybotdevcr"
 }
 
 variable "sql_server_name" {
   description = "Existing shared SQL server (managed by shared-infra)."
   type        = string
-  default     = "deliverybotsystem-sql"
+  default     = "deliverybot-dev-sql"
 }
 
 variable "container_app_name" {
@@ -38,7 +38,7 @@ variable "sql_connection_string" {
   description = "SQL connection string for BotNetApiDb. Uses Managed Identity auth — passed in from the CD pipeline, never committed."
   type        = string
   sensitive   = true
-  default     = "Server=tcp:deliverybotsystem-sql.database.windows.net,1433;Initial Catalog=BotNetApiDb;Authentication=Active Directory Managed Identity;"
+  default     = "Server=tcp:deliverybot-dev-sql.database.windows.net,1433;Initial Catalog=BotNetApiDb;Authentication=Active Directory Managed Identity;"
 }
 
 variable "tags" {
@@ -50,3 +50,4 @@ variable "tags" {
     owner     = "wmiller17"
   }
 }
+

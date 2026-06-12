@@ -13,18 +13,18 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
 
   # ACR — pre-created, admin credentials stored as Container App registry secret
-  ACR_NAME: DeliverybotCR
-  ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
 
   # Container App — pre-created with system-assigned managed identity
-  CONTAINER_APP_NAME: ewu-deliverybotsystem-api
+  CONTAINER_APP_NAME: ${{ vars.BOT_API_CONTAINER_APP_NAME }}
 
   # Azure SQL — pre-created; Container App MI already has db_owner in BotNetApiDb
-  SQL_SERVER_NAME: deliverybotsystem-sql
-  SQL_DB_NAME: BotNetApiDb
+  SQL_SERVER_NAME: ${{ vars.BOT_API_SQL_SERVER_NAME }}
+  SQL_DB_NAME: ${{ vars.BOT_API_SQL_DATABASE_NAME }}
 
   IMAGE_NAME: botnetapi
 

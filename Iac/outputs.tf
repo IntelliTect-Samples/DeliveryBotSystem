@@ -31,6 +31,43 @@ output "order_service_url" {
   value       = module.order_service.order_service_url
 }
 
+output "agent_service_url" {
+  description = "HTTPS URL of the Agent Service Container App."
+  value       = module.agent_service.agent_service_url
+}
+
+# ── Readable Bot Network Representation ───────────────────────────────────────
+
+output "readable_bot_network_function_app_name" {
+  description = "Name of the readable bot network Function App."
+  value       = module.readable_bot_network_representation.function_app_name
+}
+
+output "readable_bot_network_cosmos_account_name" {
+  description = "Name of the readable bot network Cosmos DB account."
+  value       = module.readable_bot_network_representation.cosmos_account_name
+}
+
+output "readable_bot_network_cosmos_database_name" {
+  description = "Cosmos DB database name for the readable bot network."
+  value       = module.readable_bot_network_representation.cosmos_database_name
+}
+
+output "readable_bot_network_cosmos_container_name" {
+  description = "Cosmos DB container name for current bot documents."
+  value       = module.readable_bot_network_representation.cosmos_container_name
+}
+
+output "readable_bot_network_diagnostics_container_name" {
+  description = "Cosmos DB diagnostics container name for the readable bot network."
+  value       = module.readable_bot_network_representation.cosmos_diagnostics_container_name
+}
+
+output "readable_bot_network_application_insights_name" {
+  description = "Application Insights resource name for the readable bot network Function App."
+  value       = module.readable_bot_network_representation.application_insights_name
+}
+
 # ── Bot API ────────────────────────────────────────────────────────────────────
 
 output "bot_api_url" {
