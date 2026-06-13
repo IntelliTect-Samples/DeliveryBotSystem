@@ -2,7 +2,7 @@ name: Build and Deploy Robot Simulator
 
 on:
   push:
-    branches: [main, kernw-project]
+    branches: [main]
     paths:
       - "RobotSimulator/**"
 

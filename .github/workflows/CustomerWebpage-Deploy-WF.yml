@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - kernw-project
     paths:
       - "frontend/customer-webapp/**"
       - ".github/workflows/CustomerWebpage-Deploy-WF.yml"
@@ -12,7 +11,6 @@ on:
   pull_request:
     branches:
       - main
-      - kernw-project
     paths:
       - "frontend/customer-webapp/**"
       - ".github/workflows/CustomerWebpage-Deploy-WF.yml"
@@ -68,7 +66,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/kernw-project'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.CUSTOMER_FRONTEND_APP_SERVICE_NAME || 'wa-deliverybot-final' }}

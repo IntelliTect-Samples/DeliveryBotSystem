@@ -14,12 +14,12 @@ name: Infrastructure — Apply All Services
 
 on:
   push:
-    branches: [main, kernw-project]
+    branches: [main]
     paths:
       - "Iac/**"
       - ".github/workflows/iac.yml"
   pull_request:
-    branches: [main, kernw-project]
+    branches: [main]
     paths:
       - "Iac/**"
       - ".github/workflows/iac.yml"
@@ -130,5 +130,5 @@ jobs:
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/kernw-project'))
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         run: terraform apply -input=false tfplan

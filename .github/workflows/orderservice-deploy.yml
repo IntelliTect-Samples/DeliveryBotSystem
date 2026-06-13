@@ -7,12 +7,12 @@ name: Build and Deploy Order Service
 
 on:
   push:
-    branches: [main, kernw-project]
+    branches: [main]
     paths:
       - "OrderService/**"
       - ".github/workflows/orderservice-deploy.yml"
   pull_request:
-    branches: [main, kernw-project]
+    branches: [main]
     paths:
       - "OrderService/**"
       - ".github/workflows/orderservice-deploy.yml"
