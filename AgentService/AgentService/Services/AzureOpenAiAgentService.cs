@@ -160,7 +160,19 @@ public sealed class AzureOpenAiAgentService : IAgentService
                 JsonOptions,
                 cancellationToken);
         }
-        catch
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
         {
             return null;
         }
@@ -193,7 +205,19 @@ public sealed class AzureOpenAiAgentService : IAgentService
                 JsonOptions,
                 cancellationToken);
         }
-        catch
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
         {
             return null;
         }

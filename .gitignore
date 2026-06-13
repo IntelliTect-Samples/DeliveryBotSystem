@@ -25,7 +25,12 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.dotnet/
 
 # VS Code workspace settings (keep launch/tasks, ignore local overrides)
 .vscode/settings.json
 .vscode/*.code-workspace
+
+# .NET build output
+**/bin/
+**/obj/

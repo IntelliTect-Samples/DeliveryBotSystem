@@ -149,7 +149,7 @@ public class OrderService : IOrderService
             var client = _httpClientFactory.CreateClient("Nominatim");
             var encoded = Uri.EscapeDataString(address);
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var response = await client.GetAsync(
+            using var response = await client.GetAsync(
                 $"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1",
                 timeoutCts.Token);
 
@@ -213,7 +213,7 @@ public class OrderService : IOrderService
         try
         {
             var client = _httpClientFactory.CreateClient();
-            var response = await client.GetAsync($"{simulatorUrl.TrimEnd('/')}/bots");
+            using var response = await client.GetAsync($"{simulatorUrl.TrimEnd('/')}/bots");
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
@@ -232,10 +232,25 @@ public class OrderService : IOrderService
                 .Select(b => b.BotId)
                 .FirstOrDefault();
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            _logger.LogWarning(ex, "Failed to contact RobotSimulator for bot selection. Falling back to BotNetApi.");
-            return null;
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (TaskCanceledException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (JsonException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (NotSupportedException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
         }
     }
 
@@ -252,7 +267,7 @@ public class OrderService : IOrderService
         {
             var client = _httpClientFactory.CreateClient();
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var response = await client.GetAsync($"{botApiUrl}/api/bots", timeoutCts.Token);
+            using var response = await client.GetAsync($"{botApiUrl}/api/bots", timeoutCts.Token);
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
@@ -371,12 +386,13 @@ public class OrderService : IOrderService
 
             var client = _httpClientFactory.CreateClient();
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var response = await client.PostAsync(
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json");
+            using var response = await client.PostAsync(
                 $"{simulatorUrl.TrimEnd('/')}/orders/assignments",
-                new StringContent(
-                    JsonSerializer.Serialize(payload),
-                    Encoding.UTF8,
-                    "application/json"),
+                content,
                 timeoutCts.Token);
 
             if (!response.IsSuccessStatusCode)
@@ -396,15 +412,46 @@ public class OrderService : IOrderService
 
             return true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Failed direct simulator assignment. Falling back to Event Hub. OrderId={OrderId} BotId={BotId}",
-                order.Id,
-                botId);
-            return false;
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
         }
+        catch (TaskCanceledException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (JsonException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (NotSupportedException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (UriFormatException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+    }
+
+    private string? LogSimulatorSelectionFailure(Exception ex)
+    {
+        _logger.LogWarning(ex, "Failed to contact RobotSimulator for bot selection. Falling back to BotNetApi.");
+        return null;
+    }
+
+    private bool LogDirectSimulatorAssignmentFailure(Exception ex, Order order, string botId)
+    {
+        _logger.LogWarning(
+            ex,
+            "Failed direct simulator assignment. Falling back to Event Hub. OrderId={OrderId} BotId={BotId}",
+            order.Id,
+            botId);
+        return false;
     }
 
     private async Task<bool> TryPersistOrderAsync(Order order)
