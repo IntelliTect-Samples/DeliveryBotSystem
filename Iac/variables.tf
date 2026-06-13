@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   description = "Resource group shared by all DeliveryBot resources."
   type        = string
-  default     = "deliverybot-rg"
+  default     = "ewu-deliverybotsystem-rg"
 }
 
 variable "location" {
@@ -19,19 +19,19 @@ variable "eventhub_location" {
 variable "acr_name" {
   description = "Name of the shared Azure Container Registry."
   type        = string
-  default     = "deliverybotdevcr"
+  default     = "DeliverybotCR"
 }
 
 variable "container_app_environment_name" {
   description = "Name of the shared Container Apps managed environment."
   type        = string
-  default     = "deliverybot-dev-cae"
+  default     = "managedEnvironment-ewudeliverybots-aa2f"
 }
 
 variable "create_container_app_environment" {
   description = "Whether to create the shared Container Apps managed environment in this stack."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "existing_container_app_environment_resource_group_name" {
@@ -43,7 +43,7 @@ variable "existing_container_app_environment_resource_group_name" {
 variable "eventhub_namespace_name" {
   description = "Name of the shared Event Hub namespace."
   type        = string
-  default     = "deliverybot-dev-evhns"
+  default     = "DeliverybotSimulator-EVHNS"
 }
 
 variable "robot_input_partition_count" {
@@ -85,7 +85,7 @@ variable "tenant_id" {
 variable "app_service_plan_name" {
   description = "Name of the shared App Service Plan used by both web apps."
   type        = string
-  default     = "asp-deliverybot-dev"
+  default     = "ASP-RGDeliveryBotdev-8b82"
 }
 
 variable "app_service_plan_sku_name" {
@@ -103,7 +103,7 @@ variable "app_service_plan_location" {
 variable "create_app_service_plan" {
   description = "Whether to create the shared App Service Plan in this stack."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "existing_app_service_plan_resource_group_name" {
@@ -121,25 +121,25 @@ variable "node_version" {
 variable "botnet_api_url" {
   description = "Public HTTPS URL of the BotNet API Container App."
   type        = string
-  default     = "https://deliverybot-botapi-dev.example.com"
+  default     = "https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io"
 }
 
 variable "simulator_api_url" {
   description = "Public HTTPS URL of the Robot Simulator Container App."
   type        = string
-  default     = "https://deliverybot-simulator-dev.example.com"
+  default     = "https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io"
 }
 
 variable "admin_app_service_name" {
   description = "Name of the Admin Web App App Service."
   type        = string
-  default     = "wa-deliverybot-admin-dev"
+  default     = "WA-DeliveryBot-Admin-dev"
 }
 
 variable "order_service_container_app_name" {
   description = "Name of the Order Service Container App."
   type        = string
-  default     = "deliverybot-orders-dev"
+  default     = "deliverybot-order-service"
 }
 
 variable "agent_service_container_app_name" {
@@ -365,30 +365,30 @@ variable "readable_bot_network_application_insights_name" {
 variable "bot_api_container_app_name" {
   description = "Name of the BotNet API Container App."
   type        = string
-  default     = "deliverybot-botapi-dev"
+  default     = "ewu-deliverybotsystem-api"
 }
 
 variable "bot_api_sql_server_name" {
   description = "Name of the shared SQL server used by the Bot API."
   type        = string
-  default     = "deliverybot-dev-sql"
+  default     = "deliverybotsystem-sql"
 }
 
 variable "bot_api_sql_connection_string" {
   description = "SQL connection string for BotNetApiDb. Uses Managed Identity auth."
   type        = string
   sensitive   = true
-  default     = "Server=tcp:deliverybot-dev-sql.database.windows.net,1433;Initial Catalog=BotNetApiDb;Authentication=Active Directory Managed Identity;"
+  default     = "Server=tcp:deliverybotsystem-sql.database.windows.net,1433;Initial Catalog=BotNetApiDb;Authentication=Active Directory Managed Identity;"
 }
 
 variable "customer_frontend_app_service_name" {
   description = "Name of the Customer Frontend App Service."
   type        = string
-  default     = "wa-deliverybot-dev"
+  default     = "WA-DeliveryBot-dev"
 }
 
 variable "simulator_container_app_name" {
   description = "Name of the Robot Simulator Container App."
   type        = string
-  default     = "deliverybot-simulator-dev"
+  default     = "deliverybot-robot-simulator"
 }

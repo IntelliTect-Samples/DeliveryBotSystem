@@ -30,9 +30,9 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'deliverybot-final-rg' }}
-  FUNCTION_APP_NAME: ${{ vars.READABLE_BOT_NETWORK_FUNCTION_APP_NAME || 'deliverybot-final-rbnr-func' }}
-  COSMOS_ACCOUNT_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_ACCOUNT_NAME || 'deliverybot-final-rbnr-cosmos' }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'ewu-deliverybotsystem-rg' }}
+  FUNCTION_APP_NAME: ${{ vars.READABLE_BOT_NETWORK_FUNCTION_APP_NAME || 'deliverybot-rbnr-dev-rbnr-func-mtgpw6' }}
+  COSMOS_ACCOUNT_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_ACCOUNT_NAME || 'deliverybot-rbnr-dev-rbnr-mtgpw6' }}
   COSMOS_DATABASE_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_DATABASE_NAME || 'bot-network' }}
   BOTS_CONTAINER_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_CONTAINER_NAME || 'bots' }}
   DIAGNOSTICS_CONTAINER_NAME: ${{ vars.READABLE_BOT_NETWORK_DIAGNOSTICS_CONTAINER_NAME || 'function-diagnostics' }}

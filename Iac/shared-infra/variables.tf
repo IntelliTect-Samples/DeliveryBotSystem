@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   description = "Name of the shared resource group."
   type        = string
-  default     = "deliverybot-rg"
+  default     = "ewu-deliverybotsystem-rg"
 }
 
 variable "location" {

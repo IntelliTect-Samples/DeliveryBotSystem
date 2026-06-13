@@ -69,5 +69,5 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ vars.CUSTOMER_FRONTEND_APP_SERVICE_NAME || 'wa-deliverybot-final' }}
+          app-name: ${{ vars.CUSTOMER_FRONTEND_APP_SERVICE_NAME || 'WA-DeliveryBot-dev' }}
           package: frontend/customer-webapp/dist

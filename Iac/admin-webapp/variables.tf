@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   description = "Resource group that hosts the DeliveryBot resources."
   type        = string
-  default     = "deliverybot-rg"
+  default     = "ewu-deliverybotsystem-rg"
 }
 
 variable "location" {
@@ -18,7 +18,7 @@ variable "app_service_plan_id" {
 variable "app_service_name" {
   description = "Globally-unique name for the Admin Web App App Service."
   type        = string
-  default     = "wa-deliverybot-admin-dev"
+  default     = "WA-DeliveryBot-Admin-dev"
 }
 
 variable "node_version" {

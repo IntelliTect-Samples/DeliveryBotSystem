@@ -22,14 +22,15 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'deliverybot-final-rg' }}
-  ACR_NAME: ${{ vars.ACR_NAME || 'deliverybotfinalcr' }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || 'deliverybotfinalcr.azurecr.io' }}
-  CONTAINER_APP_NAME: ${{ vars.AGENT_SERVICE_CONTAINER_APP_NAME || 'deliverybot-agent-final' }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'ewu-deliverybotsystem-rg' }}
+  ACR_NAME: ${{ vars.ACR_NAME || 'DeliverybotCR' }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || 'deliverybotcr.azurecr.io' }}
+  CONTAINER_APP_NAME: ${{ vars.AGENT_SERVICE_CONTAINER_APP_NAME || 'deliverybot-agent-dev' }}
   IMAGE_NAME: agentservice
 
 jobs:
   build-and-deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
