@@ -1,5 +1,7 @@
 import { appConfig } from "./config.js"
 
+const DEFAULT_ORDER_TIMEOUT_MS = 8000
+
 const DEMO_DESTINATIONS = [
   {
     matchers: [
@@ -153,8 +155,28 @@ function createMockOrder(form) {
   )
 }
 
+async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
+  if (typeof AbortController === "undefined") {
+    return fetchImpl(url, options)
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetchImpl(url, {
+      ...options,
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function submitOrder(form, options = {}) {
   const fetchImpl = options.fetchImpl || fetch
+  const timeoutMs = options.timeoutMs || DEFAULT_ORDER_TIMEOUT_MS
+  const orderServiceUrl = options.orderServiceUrl ?? appConfig.orderServiceUrl
   const validationErrors = validateOrderForm(form)
 
   if (Object.keys(validationErrors).length > 0) {
@@ -165,7 +187,7 @@ export async function submitOrder(form, options = {}) {
 
   const payload = toPlaceOrderRequest(form)
 
-  if (!appConfig.orderServiceUrl) {
+  if (!orderServiceUrl) {
     return {
       order: createMockOrder(form),
       source: "mock"
@@ -173,13 +195,18 @@ export async function submitOrder(form, options = {}) {
   }
 
   try {
-    const response = await fetchImpl(`${appConfig.orderServiceUrl}/api/orders`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      `${orderServiceUrl}/api/orders`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
       },
-      body: JSON.stringify(payload)
-    })
+      timeoutMs
+    )
 
     if (!response.ok) {
       throw new Error(`Order Service returned HTTP ${response.status}.`)
@@ -192,10 +219,14 @@ export async function submitOrder(form, options = {}) {
       source: "api"
     }
   } catch (error) {
+    const warning = error?.name === "AbortError"
+      ? "Order Service request timed out."
+      : error.message
+
     return {
       order: createMockOrder(form),
       source: "mock",
-      warning: error.message
+      warning
     }
   }
 }

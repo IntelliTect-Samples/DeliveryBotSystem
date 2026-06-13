@@ -182,6 +182,84 @@ variable "azure_openai_api_version" {
   default     = "2024-10-21"
 }
 
+variable "agent_key_vault_name" {
+  description = "Optional explicit name for the Agent Service Key Vault."
+  type        = string
+  default     = null
+}
+
+variable "agent_key_vault_openai_secret_name" {
+  description = "Secret name used in Key Vault for the Agent Service Azure OpenAI API key."
+  type        = string
+  default     = "azure-openai-api-key"
+}
+
+variable "agent_transcript_storage_account_name" {
+  description = "Optional explicit storage account name for archived agent transcripts."
+  type        = string
+  default     = null
+}
+
+variable "agent_transcript_container_name" {
+  description = "Blob container name used for archived agent transcripts."
+  type        = string
+  default     = "agent-transcripts"
+}
+
+variable "support_escalation_container_name" {
+  description = "Blob container name used by the Function App to archive support escalations consumed from Service Bus."
+  type        = string
+  default     = "support-escalations"
+}
+
+variable "agent_search_service_name" {
+  description = "Optional explicit Azure AI Search service name for agent grounding."
+  type        = string
+  default     = null
+}
+
+variable "agent_search_index_name" {
+  description = "Azure AI Search index name seeded and queried by the Agent Service."
+  type        = string
+  default     = "delivery-agent-knowledge"
+}
+
+variable "agent_search_sku" {
+  description = "SKU for Azure AI Search. basic keeps the final project inexpensive while supporting managed identity."
+  type        = string
+  default     = "basic"
+}
+
+variable "support_servicebus_namespace_name" {
+  description = "Optional explicit Service Bus namespace name for support escalation workflow."
+  type        = string
+  default     = null
+}
+
+variable "support_escalation_queue_name" {
+  description = "Service Bus queue that carries support escalation work items."
+  type        = string
+  default     = "support-escalations"
+}
+
+variable "api_management_name" {
+  description = "Optional explicit Azure API Management service name for the final-project API facade."
+  type        = string
+  default     = null
+}
+
+variable "api_management_publisher_name" {
+  description = "Publisher name required by Azure API Management."
+  type        = string
+  default     = "DeliveryBot"
+}
+
+variable "api_management_publisher_email" {
+  description = "Publisher email required by Azure API Management."
+  type        = string
+  default     = "deliverybot@example.com"
+}
+
 variable "readable_bot_network_name_prefix" {
   description = "Short prefix used in generated resource names for the readable bot network resources."
   type        = string

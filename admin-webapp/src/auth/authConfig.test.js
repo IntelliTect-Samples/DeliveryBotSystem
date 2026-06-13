@@ -23,4 +23,12 @@ describe('authConfig (issue #54)', () => {
     const mod = await import('./authConfig.js?nocache=' + Date.now())
     expect(mod.authEnabled).toBe(true)
   })
+
+  it('requests only baseline OIDC scopes for sign-in', async () => {
+    vi.resetModules()
+    vi.stubEnv('VITE_ENTRA_CLIENT_ID', 'test-client-id')
+    vi.stubEnv('VITE_ENTRA_TENANT_ID', 'test-tenant-id')
+    const mod = await import('./authConfig.js?nocache=' + Date.now())
+    expect(mod.loginRequest.scopes).toEqual(['openid', 'profile'])
+  })
 })

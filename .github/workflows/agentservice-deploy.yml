@@ -12,6 +12,10 @@ on:
       - "AgentService/**"
       - ".github/workflows/agentservice-deploy.yml"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Infrastructure — Apply All Services"]
+    types:
+      - completed
 
 permissions:
   id-token: write
@@ -31,10 +35,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
       - name: Run backend checks
         run: |
           dotnet build AgentService/AgentService/AgentService.csproj --configuration Release
-          dotnet run --project AgentService/AgentService.Tests/AgentService.Tests.csproj --configuration Release
+          dotnet test AgentService/AgentService.Tests/AgentService.Tests.csproj --configuration Release
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2

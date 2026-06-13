@@ -14,12 +14,55 @@ vi.mock('./simulator.js', () => ({
   createSimulatorBot: vi.fn(),
   updateSimulatorBot: vi.fn(),
   deleteSimulatorBot: vi.fn(),
+  listSimulatorBots: vi.fn(),
   simulatorConfig: { baseUrl: 'http://sim', configured: true },
 }))
 
 const bots = await import('./bots.js')
 const sim = await import('./simulator.js')
 const admin = await import('./admin.js')
+
+describe('listBotsWithTelemetry (live monitoring)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('merges simulator telemetry into BotNet bots by botId', async () => {
+    bots.listBots.mockResolvedValue({
+      source: 'api',
+      data: [
+        { id: 1, name: 'bot-001', batteryLevel: 80 },
+        { id: 2, name: 'bot-002', batteryLevel: 50 },
+      ],
+    })
+    sim.listSimulatorBots.mockResolvedValue({
+      ok: true,
+      data: [{ botId: 'bot-001', powerLevel: 79.4, status: 1, currentLocation: { latitude: 47.6, longitude: -117.4 } }],
+    })
+
+    const result = await admin.listBotsWithTelemetry()
+
+    expect(result.source).toBe('api')
+    expect(result.simulatorReachable).toBe(true)
+    expect(result.data[0].telemetry).toEqual({
+      powerLevel: 79.4,
+      status: 1,
+      location: { latitude: 47.6, longitude: -117.4 },
+    })
+    // bot-002 has no simulator match → telemetry is null.
+    expect(result.data[1].telemetry).toBeNull()
+  })
+
+  it('returns bots without telemetry when the simulator is unreachable', async () => {
+    bots.listBots.mockResolvedValue({ source: 'api', data: [{ id: 1, name: 'bot-001' }] })
+    sim.listSimulatorBots.mockResolvedValue({ ok: false, skipped: true })
+
+    const result = await admin.listBotsWithTelemetry()
+
+    expect(result.simulatorReachable).toBe(false)
+    expect(result.data[0].telemetry).toBeNull()
+  })
+})
 
 describe('registerBot (issue #49)', () => {
   beforeEach(() => {

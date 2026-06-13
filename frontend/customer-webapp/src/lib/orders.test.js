@@ -203,6 +203,22 @@ test("submitOrder falls back cleanly when the service returns a bad status", asy
   }
 })
 
+test("submitOrder falls back cleanly when the service times out", async () => {
+  const result = await submitOrder(mappableForm, {
+    orderServiceUrl: "https://orders.example.com",
+    timeoutMs: 10,
+    fetchImpl: async (_url, options) => new Promise((_, reject) => {
+      options.signal.addEventListener("abort", () => {
+        reject(Object.assign(new Error("aborted"), { name: "AbortError" }))
+      })
+    })
+  })
+
+  assert.equal(result.source, "mock")
+  assert.match(result.warning, /timed out/i)
+  assert.equal(result.order.status, "Assigned")
+})
+
 test("submitOrder falls back to a mock order when no Order Service URL is configured", async () => {
   const result = await submitOrder(mappableForm)
 

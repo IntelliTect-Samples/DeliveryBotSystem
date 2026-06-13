@@ -67,8 +67,33 @@ public static class AzureOpenAiChatMapper
         }
 
         lines.Add("");
+        lines.Add("Live service data:");
+
+        if (string.IsNullOrWhiteSpace(request.Context?.LiveDataSummary))
+        {
+            lines.Add("- No live service enrichment is available.");
+        }
+        else
+        {
+            lines.Add(request.Context.LiveDataSummary);
+        }
+
+        lines.Add("");
+        lines.Add("Knowledge base grounding:");
+
+        if (string.IsNullOrWhiteSpace(request.Context?.GroundingSummary))
+        {
+            lines.Add("- No grounding documents were retrieved.");
+        }
+        else
+        {
+            lines.Add(request.Context.GroundingSummary);
+        }
+
+        lines.Add("");
         lines.Add("Answer the customer directly in plain language.");
         lines.Add("If a detail is missing, say that directly instead of guessing.");
+        lines.Add("If knowledge base grounding is available and relevant, use it and mention the document title naturally.");
 
         return string.Join(Environment.NewLine, lines);
     }

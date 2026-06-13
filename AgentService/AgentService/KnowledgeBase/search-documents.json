@@ -1,0 +1,30 @@
+[
+  {
+    "id": "delivery-eta-policy",
+    "title": "Delivery ETA Guidance",
+    "source": "DeliveryBot support playbook",
+    "category": "customer-support",
+    "content": "When customers ask about ETA, answer from live order, route, and bot status. If live ETA is unavailable, explain that the assistant can see order status but not a reliable minute-by-minute estimate."
+  },
+  {
+    "id": "bot-assignment-policy",
+    "title": "Bot Assignment Guidance",
+    "source": "DeliveryBot operations notes",
+    "category": "fleet-operations",
+    "content": "A delivery may show no assigned bot while the order is still pending. Once a bot is assigned, provide the bot id and current bot status from live data instead of inventing a location."
+  },
+  {
+    "id": "late-delivery-escalation",
+    "title": "Late Delivery Escalation",
+    "source": "Support escalation policy",
+    "category": "escalation",
+    "content": "If a customer reports a late, stuck, failed, broken, or missing delivery, apologize briefly, summarize the known order details, and tell them the issue is being sent to support for follow-up."
+  },
+  {
+    "id": "refund-cancellation-policy",
+    "title": "Refund And Cancellation Handling",
+    "source": "Support escalation policy",
+    "category": "escalation",
+    "content": "Refunds, cancellations, complaints, and requests for a human should be escalated. The assistant may collect the order id and issue summary but should not promise a refund outcome."
+  }
+]

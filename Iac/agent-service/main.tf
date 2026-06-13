@@ -27,19 +27,25 @@ module "agent_service_app" {
   image          = "${data.azurerm_container_registry.acr.login_server}/${var.image_name}:latest"
   target_port    = 8080
 
-  secrets = {
-    "azure-openai-api-key" = var.azure_openai_api_key
-  }
-
   env_vars = {
-    "ASPNETCORE_ENVIRONMENT" = "Production"
-    "AzureOpenAI__Endpoint"  = var.azure_openai_endpoint
-    "AzureOpenAI__Deployment" = var.azure_openai_deployment
-    "AzureOpenAI__ApiVersion" = var.azure_openai_api_version
-  }
-
-  secret_env_vars = {
-    "AzureOpenAI__ApiKey" = "azure-openai-api-key"
+    "ASPNETCORE_ENVIRONMENT"              = "Production"
+    "AzureOpenAI__Endpoint"               = var.azure_openai_endpoint
+    "AzureOpenAI__Deployment"             = var.azure_openai_deployment
+    "AzureOpenAI__ApiVersion"             = var.azure_openai_api_version
+    "AzureOpenAI__ApiKeySecretName"       = var.azure_openai_api_key_secret_name
+    "KeyVault__VaultUri"                  = var.key_vault_uri
+    "Integrations__OrderServiceBaseUrl"   = var.order_service_url
+    "Integrations__SimulatorBaseUrl"      = var.simulator_api_url
+    "TranscriptArchive__BlobServiceUri"   = var.transcript_archive_blob_service_uri
+    "TranscriptArchive__ContainerName"    = var.transcript_archive_container_name
+    "TranscriptArchive__Enabled"          = "true"
+    "Search__Enabled"                     = "true"
+    "Search__Endpoint"                    = var.search_endpoint
+    "Search__IndexName"                   = var.search_index_name
+    "ServiceBus__Enabled"                 = "true"
+    "ServiceBus__FullyQualifiedNamespace" = var.servicebus_fully_qualified_namespace
+    "ServiceBus__QueueName"               = var.support_escalation_queue_name
+    "Cors__AllowedOrigins"                = var.cors_allowed_origins
   }
 
   tags = var.tags

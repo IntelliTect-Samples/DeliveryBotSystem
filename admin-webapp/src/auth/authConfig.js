@@ -31,8 +31,9 @@ export const msalConfig = {
   },
 }
 
-// openid + profile yield the ID token (name) and group claims. Add API scopes
-// here once the backends validate bearer tokens.
+// Keep the initial sign-in request to pure OIDC scopes. Requesting Graph scopes
+// like User.Read here can force extra consent/admin policy checks even though
+// the app only needs an ID token and group claims to gate staff access.
 export const loginRequest = {
-  scopes: ['openid', 'profile', 'User.Read'],
+  scopes: ['openid', 'profile'],
 }

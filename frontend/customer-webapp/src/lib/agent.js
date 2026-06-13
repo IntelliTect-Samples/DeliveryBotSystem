@@ -2,6 +2,8 @@ import { appConfig } from "./config.js"
 import { formatDistance, formatDuration } from "./osrm.js"
 import { formatOrderStatus, summarizeItems } from "./orders.js"
 
+const DEFAULT_AGENT_TIMEOUT_MS = 8000
+
 export function buildAgentContext(latestOrder, route) {
   return {
     latestOrder: latestOrder
@@ -203,9 +205,28 @@ async function readAgentError(response) {
   }
 }
 
+async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
+  if (typeof AbortController === "undefined") {
+    return fetchImpl(url, options)
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetchImpl(url, {
+      ...options,
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function sendAgentMessage(message, context, options = {}) {
   const fetchImpl = options.fetchImpl || fetch
   const agentApiUrl = options.agentApiUrl || appConfig.agentApiUrl
+  const timeoutMs = options.timeoutMs || DEFAULT_AGENT_TIMEOUT_MS
   const payload = buildAgentPayload(message, context, options.messages)
 
   if (!agentApiUrl) {
@@ -217,13 +238,18 @@ export async function sendAgentMessage(message, context, options = {}) {
   }
 
   try {
-    const response = await fetchImpl(`${agentApiUrl}/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      `${agentApiUrl}/chat`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
       },
-      body: JSON.stringify(payload)
-    })
+      timeoutMs
+    )
 
     if (!response.ok) {
       throw new Error(await readAgentError(response))
@@ -245,7 +271,9 @@ export async function sendAgentMessage(message, context, options = {}) {
     return {
       reply: buildLocalReply(message, context),
       source: "fallback",
-      warning: error.message,
+      warning: error?.name === "AbortError"
+        ? "Agent service request timed out."
+        : error.message,
       model: null
     }
   }

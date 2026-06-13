@@ -36,6 +36,46 @@ output "agent_service_url" {
   value       = module.agent_service.agent_service_url
 }
 
+output "agent_key_vault_name" {
+  description = "Name of the Key Vault used by the Agent Service for secret retrieval."
+  value       = azurerm_key_vault.agent.name
+}
+
+output "agent_key_vault_uri" {
+  description = "Vault URI used by the Agent Service to read secrets with managed identity."
+  value       = azurerm_key_vault.agent.vault_uri
+}
+
+output "agent_transcript_storage_account_name" {
+  description = "Storage account name used for archived agent transcripts."
+  value       = azurerm_storage_account.agent_transcripts.name
+}
+
+output "agent_transcript_container_name" {
+  description = "Blob container used for archived agent transcripts."
+  value       = azurerm_storage_container.agent_transcripts.name
+}
+
+output "support_escalation_queue_name" {
+  description = "Service Bus queue used for support escalation workflow."
+  value       = azurerm_servicebus_queue.support_escalations.name
+}
+
+output "agent_search_service_name" {
+  description = "Azure AI Search service used for agent grounding."
+  value       = azurerm_search_service.agent.name
+}
+
+output "agent_search_index_name" {
+  description = "Azure AI Search index queried by the Agent Service."
+  value       = var.agent_search_index_name
+}
+
+output "api_management_gateway_url" {
+  description = "Gateway URL for the API Management facade."
+  value       = azurerm_api_management.deliverybot.gateway_url
+}
+
 # ── Readable Bot Network Representation ───────────────────────────────────────
 
 output "readable_bot_network_function_app_name" {

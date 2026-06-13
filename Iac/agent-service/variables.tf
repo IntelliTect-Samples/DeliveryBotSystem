@@ -38,16 +38,72 @@ variable "azure_openai_deployment" {
   type        = string
 }
 
-variable "azure_openai_api_key" {
-  description = "Azure OpenAI API key."
-  type        = string
-  sensitive   = true
-}
-
 variable "azure_openai_api_version" {
   description = "Azure OpenAI API version used for chat completions."
   type        = string
   default     = "2024-10-21"
+}
+
+variable "azure_openai_api_key_secret_name" {
+  description = "Key Vault secret name that stores the Azure OpenAI API key."
+  type        = string
+}
+
+variable "key_vault_uri" {
+  description = "Vault URI used by the agent service to resolve secrets with managed identity."
+  type        = string
+}
+
+variable "transcript_archive_blob_service_uri" {
+  description = "Blob service URI used for transcript archive writes."
+  type        = string
+}
+
+variable "transcript_archive_container_name" {
+  description = "Blob container name used for transcript archive writes."
+  type        = string
+}
+
+variable "order_service_url" {
+  description = "Order Service base URL used for live order enrichment."
+  type        = string
+  default     = ""
+}
+
+variable "simulator_api_url" {
+  description = "Robot Simulator base URL used for live bot enrichment."
+  type        = string
+  default     = ""
+}
+
+variable "search_endpoint" {
+  description = "Azure AI Search endpoint used for agent grounding."
+  type        = string
+  default     = ""
+}
+
+variable "search_index_name" {
+  description = "Azure AI Search index name used for agent grounding."
+  type        = string
+  default     = "delivery-agent-knowledge"
+}
+
+variable "servicebus_fully_qualified_namespace" {
+  description = "Service Bus namespace host used for support escalation publishing."
+  type        = string
+  default     = ""
+}
+
+variable "support_escalation_queue_name" {
+  description = "Service Bus queue name used for support escalation publishing."
+  type        = string
+  default     = "support-escalations"
+}
+
+variable "cors_allowed_origins" {
+  description = "Comma-separated frontend origins allowed to call the Agent Service."
+  type        = string
+  default     = ""
 }
 
 variable "tags" {

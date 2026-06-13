@@ -1,25 +1,25 @@
 module "shared_infra" {
   source = "./shared-infra"
 
-  resource_group_name                                   = var.resource_group_name
-  location                                              = var.location
-  eventhub_location                                     = var.eventhub_location
-  sql_location                                          = var.sql_location
-  acr_name                                              = var.acr_name
-  app_service_plan_name                                 = var.app_service_plan_name
-  app_service_plan_sku_name                             = var.app_service_plan_sku_name
-  create_app_service_plan                               = var.create_app_service_plan
-  existing_app_service_plan_resource_group_name         = var.existing_app_service_plan_resource_group_name
-  container_app_environment_name                        = var.container_app_environment_name
-  create_container_app_environment                      = var.create_container_app_environment
+  resource_group_name                                    = var.resource_group_name
+  location                                               = var.location
+  eventhub_location                                      = var.eventhub_location
+  sql_location                                           = var.sql_location
+  acr_name                                               = var.acr_name
+  app_service_plan_name                                  = var.app_service_plan_name
+  app_service_plan_sku_name                              = var.app_service_plan_sku_name
+  create_app_service_plan                                = var.create_app_service_plan
+  existing_app_service_plan_resource_group_name          = var.existing_app_service_plan_resource_group_name
+  container_app_environment_name                         = var.container_app_environment_name
+  create_container_app_environment                       = var.create_container_app_environment
   existing_container_app_environment_resource_group_name = var.existing_container_app_environment_resource_group_name
-  eventhub_namespace_name                               = var.eventhub_namespace_name
-  robot_input_partition_count                           = var.robot_input_partition_count
-  robot_output_partition_count                          = var.robot_output_partition_count
-  sql_server_name                                       = var.bot_api_sql_server_name
-  sql_ad_admin_login                                    = var.sql_ad_admin_login
-  sql_ad_admin_object_id                                = var.sql_ad_admin_object_id
-  tenant_id                                             = var.tenant_id
+  eventhub_namespace_name                                = var.eventhub_namespace_name
+  robot_input_partition_count                            = var.robot_input_partition_count
+  robot_output_partition_count                           = var.robot_output_partition_count
+  sql_server_name                                        = var.bot_api_sql_server_name
+  sql_ad_admin_login                                     = var.sql_ad_admin_login
+  sql_ad_admin_object_id                                 = var.sql_ad_admin_object_id
+  tenant_id                                              = var.tenant_id
 }
 
 module "admin_webapp" {
@@ -50,14 +50,24 @@ module "order_service" {
 module "agent_service" {
   source = "./agent-service"
 
-  resource_group_name            = var.resource_group_name
-  container_app_environment_name = module.shared_infra.container_app_environment_name
-  acr_name                       = module.shared_infra.acr_name
-  container_app_name             = var.agent_service_container_app_name
-  azure_openai_endpoint          = var.azure_openai_endpoint
-  azure_openai_deployment        = var.azure_openai_deployment
-  azure_openai_api_key           = var.azure_openai_api_key
-  azure_openai_api_version       = var.azure_openai_api_version
+  resource_group_name                  = var.resource_group_name
+  container_app_environment_name       = module.shared_infra.container_app_environment_name
+  acr_name                             = module.shared_infra.acr_name
+  container_app_name                   = var.agent_service_container_app_name
+  azure_openai_endpoint                = var.azure_openai_endpoint
+  azure_openai_deployment              = var.azure_openai_deployment
+  azure_openai_api_version             = var.azure_openai_api_version
+  azure_openai_api_key_secret_name     = azurerm_key_vault_secret.agent_openai_api_key.name
+  key_vault_uri                        = azurerm_key_vault.agent.vault_uri
+  transcript_archive_blob_service_uri  = azurerm_storage_account.agent_transcripts.primary_blob_endpoint
+  transcript_archive_container_name    = azurerm_storage_container.agent_transcripts.name
+  order_service_url                    = module.order_service.order_service_url
+  simulator_api_url                    = module.simulator.container_app_url
+  search_endpoint                      = "https://${azurerm_search_service.agent.name}.search.windows.net"
+  search_index_name                    = var.agent_search_index_name
+  servicebus_fully_qualified_namespace = "${azurerm_servicebus_namespace.support.name}.servicebus.windows.net"
+  support_escalation_queue_name        = azurerm_servicebus_queue.support_escalations.name
+  cors_allowed_origins                 = module.frontend.app_url
 }
 
 module "readable_bot_network_representation" {
@@ -85,6 +95,13 @@ module "readable_bot_network_representation" {
   assign_eventhub_receiver_role       = var.readable_bot_network_assign_eventhub_receiver_role
   assign_cosmos_data_contributor_role = var.readable_bot_network_assign_cosmos_data_contributor_role
   create_eventhub_consumer_group      = var.readable_bot_network_create_eventhub_consumer_group
+  additional_app_settings = {
+    SupportEscalationQueueName                           = azurerm_servicebus_queue.support_escalations.name
+    SupportEscalationServiceBus__fullyQualifiedNamespace = "${azurerm_servicebus_namespace.support.name}.servicebus.windows.net"
+    SupportEscalationServiceBus__credential              = "managedidentity"
+    EscalationArchive__BlobServiceUri                    = azurerm_storage_account.agent_transcripts.primary_blob_endpoint
+    EscalationArchive__ContainerName                     = azurerm_storage_container.support_escalations.name
+  }
 }
 
 module "bot_api" {
