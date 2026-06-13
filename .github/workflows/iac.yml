@@ -30,8 +30,10 @@ permissions:
   contents: read
 
 env:
-  TFSTATE_STORAGE_ACCOUNT: dbstfstate01
-  TFSTATE_CONTAINER: tfstate
+  TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP || 'ewu-deliverybotsystem-rg' }}
+  TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT || 'dbstfstate01' }}
+  TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER || 'tfstate' }}
+  TFSTATE_KEY: ${{ vars.TFSTATE_KEY || 'deliverybot.tfstate' }}
 
 jobs:
   terraform:
@@ -59,6 +61,26 @@ jobs:
 
       # Event Hub — shared by Order Service and Robot Simulator.
       TF_VAR_eventhub_connection_string: ${{ secrets.AZURE_EVENTHUB_CONNECTION_STRING }}
+      TF_VAR_azure_openai_endpoint: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+      TF_VAR_azure_openai_deployment: ${{ vars.AZURE_OPENAI_DEPLOYMENT }}
+      TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      TF_VAR_resource_group_name: ${{ vars.RESOURCE_GROUP_NAME || 'ewu-deliverybotsystem-rg' }}
+      TF_VAR_acr_name: ${{ vars.ACR_NAME || 'DeliverybotCR' }}
+      TF_VAR_container_app_environment_name: ${{ vars.CONTAINER_APP_ENVIRONMENT_NAME || 'managedEnvironment-ewudeliverybots-aa2f' }}
+      TF_VAR_eventhub_namespace_name: ${{ vars.EVENTHUB_NAMESPACE_NAME || 'DeliverybotSimulator-EVHNS' }}
+      TF_VAR_existing_container_app_environment_resource_group_name: ${{ vars.CONTAINER_APP_ENVIRONMENT_RESOURCE_GROUP_NAME || 'ewu-deliverybotsystem-rg' }}
+      TF_VAR_existing_app_service_plan_resource_group_name: ${{ vars.APP_SERVICE_PLAN_RESOURCE_GROUP_NAME || 'ewu-deliverybotsystem-rg' }}
+      TF_VAR_create_container_app_environment: ${{ vars.CREATE_CONTAINER_APP_ENVIRONMENT || 'false' }}
+      TF_VAR_create_app_service_plan: ${{ vars.CREATE_APP_SERVICE_PLAN || 'false' }}
+      TF_VAR_app_service_plan_name: ${{ vars.APP_SERVICE_PLAN_NAME || 'ASP-RGDeliveryBotdev-8b82' }}
+      TF_VAR_customer_frontend_app_service_name: ${{ vars.CUSTOMER_FRONTEND_APP_SERVICE_NAME || 'WA-DeliveryBot-dev' }}
+      TF_VAR_admin_app_service_name: ${{ vars.ADMIN_APP_SERVICE_NAME || 'WA-DeliveryBot-Admin-dev' }}
+      TF_VAR_bot_api_container_app_name: ${{ vars.BOT_API_CONTAINER_APP_NAME || 'ewu-deliverybotsystem-api' }}
+      TF_VAR_order_service_container_app_name: ${{ vars.ORDER_SERVICE_CONTAINER_APP_NAME || 'deliverybot-order-service' }}
+      TF_VAR_simulator_container_app_name: ${{ vars.SIMULATOR_CONTAINER_APP_NAME || 'deliverybot-robot-simulator' }}
+      TF_VAR_bot_api_sql_server_name: ${{ vars.BOT_API_SQL_SERVER_NAME || 'deliverybotsystem-sql' }}
+      TF_VAR_botnet_api_url: ${{ vars.VITE_BOTNET_API_URL || 'https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io' }}
+      TF_VAR_simulator_api_url: ${{ vars.VITE_SIMULATOR_API_URL || 'https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io' }}
 
     steps:
       - name: Checkout repository
@@ -112,12 +134,18 @@ jobs:
           terraform_version: "1.9.5"
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TFSTATE_CONTAINER" \
+            -backend-config="key=$TFSTATE_KEY" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
 
-      # Apply only on merge to main — PRs stop at plan for review.
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         run: terraform apply -input=false tfplan

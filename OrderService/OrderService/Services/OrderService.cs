@@ -35,7 +35,7 @@ public class OrderService : IOrderService
         // 1. Geocode the delivery address to GPS coordinates
         var (latitude, longitude) = await GeocodeAddressAsync(dto.DeliveryAddress);
 
-        // 2. Pick an available bot from BotNetApi
+        // 2. Pick the best bot from the live simulator when available, then fall back to BotNetApi
         var botId = await SelectBotAsync();
 
         // 3. Map the form's order type to item IDs the simulator understands
@@ -58,16 +58,23 @@ public class OrderService : IOrderService
             }).ToList()
         };
 
-        _db.Orders.Add(order);
-        await _db.SaveChangesAsync();
+        var orderPersisted = await TryPersistOrderAsync(order);
 
-        // 5. Publish RobotOrderAssignment event to Event Hub
+        // 5. Hand the assignment to the simulator directly when available,
+        //    otherwise fall back to Event Hub.
         if (botId is not null)
             await PublishOrderAssignmentAsync(order, botId);
 
         _logger.LogInformation(
             "Order placed. OrderId={OrderId} CustomerId={CustomerId} BotId={BotId} Address={Address}",
             order.Id, order.CustomerId, order.AssignedBotId, order.DeliveryAddress);
+
+        if (!orderPersisted)
+        {
+            _logger.LogWarning(
+                "Order was processed without database persistence because the development database is unavailable. OrderId={OrderId}",
+                order.Id);
+        }
 
         return ToResponseDto(order);
     }
@@ -141,8 +148,10 @@ public class OrderService : IOrderService
         {
             var client = _httpClientFactory.CreateClient("Nominatim");
             var encoded = Uri.EscapeDataString(address);
-            var response = await client.GetAsync(
-                $"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1");
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var response = await client.GetAsync(
+                $"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1",
+                timeoutCts.Token);
 
             response.EnsureSuccessStatusCode();
 
@@ -180,8 +189,72 @@ public class OrderService : IOrderService
             _          => [("water", 1)]   // "water" and any unrecognized value → water (always stocked)
         };
 
-    // Calls BotNetApi and returns the Name of the first available bot
+    // Prefer the live simulator fleet so assignment reflects real active/queued work.
+    // Fall back to BotNetApi when simulator access is unavailable.
     private async Task<string?> SelectBotAsync()
+    {
+        var simulatorBotId = await SelectBotFromSimulatorAsync();
+        if (!string.IsNullOrWhiteSpace(simulatorBotId))
+        {
+            return simulatorBotId;
+        }
+
+        return await SelectBotFromBotNetApiAsync();
+    }
+
+    private async Task<string?> SelectBotFromSimulatorAsync()
+    {
+        var simulatorUrl = _config["RobotSimulator:BaseUrl"];
+        if (string.IsNullOrWhiteSpace(simulatorUrl))
+        {
+            return null;
+        }
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            using var response = await client.GetAsync($"{simulatorUrl.TrimEnd('/')}/bots");
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+            var bots = JsonSerializer.Deserialize<List<SimulatorBotDto>>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return bots?
+                .Where(b => !string.IsNullOrWhiteSpace(b.BotId))
+                .Where(b => !string.Equals(b.Status, "Charging", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(b => GetBotLoadRank(b.Status))
+                .ThenBy(b => b.QueuedOrderCount)
+                .ThenBy(b => b.ActiveOrderId is null ? 0 : 1)
+                .ThenBy(b => b.BotId, StringComparer.OrdinalIgnoreCase)
+                .Select(b => b.BotId)
+                .FirstOrDefault();
+        }
+        catch (HttpRequestException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (TaskCanceledException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (JsonException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (NotSupportedException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return LogSimulatorSelectionFailure(ex);
+        }
+    }
+
+    private async Task<string?> SelectBotFromBotNetApiAsync()
     {
         var botApiUrl = _config["BotNetApi:BaseUrl"];
         if (string.IsNullOrWhiteSpace(botApiUrl))
@@ -193,7 +266,8 @@ public class OrderService : IOrderService
         try
         {
             var client = _httpClientFactory.CreateClient();
-            var response = await client.GetAsync($"{botApiUrl}/api/bots");
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var response = await client.GetAsync($"{botApiUrl}/api/bots", timeoutCts.Token);
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
@@ -214,9 +288,23 @@ public class OrderService : IOrderService
         }
     }
 
-    // Publishes a RobotOrderAssignment event to Azure Event Hub
+    private static int GetBotLoadRank(string? status) =>
+        status?.Trim() switch
+        {
+            "Available" => 0,
+            "OnDelivery" => 1,
+            _ => 2
+        };
+
+    // Sends the assignment directly to the simulator in local/simple setups.
+    // Falls back to Azure Event Hub for shared/cloud-hosted setups.
     private async Task PublishOrderAssignmentAsync(Order order, string botId)
     {
+        if (await PublishDirectSimulatorAssignmentAsync(order, botId))
+        {
+            return;
+        }
+
         var connectionString = _config["EventHub:ConnectionString"];
         var eventHubName = _config["EventHub:Name"];
 
@@ -270,6 +358,126 @@ public class OrderService : IOrderService
         }
     }
 
+    private async Task<bool> PublishDirectSimulatorAssignmentAsync(Order order, string botId)
+    {
+        var simulatorUrl = _config["RobotSimulator:BaseUrl"];
+        if (string.IsNullOrWhiteSpace(simulatorUrl))
+        {
+            return false;
+        }
+
+        try
+        {
+            var payload = new
+            {
+                orderId = order.Id.ToString(),
+                botId,
+                items = order.Items.Select(i => new
+                {
+                    itemId = i.ItemId,
+                    quantity = i.Quantity
+                }).ToList(),
+                destination = new
+                {
+                    latitude = order.DestinationLatitude,
+                    longitude = order.DestinationLongitude
+                }
+            };
+
+            var client = _httpClientFactory.CreateClient();
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json");
+            using var response = await client.PostAsync(
+                $"{simulatorUrl.TrimEnd('/')}/orders/assignments",
+                content,
+                timeoutCts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "RobotSimulator direct assignment returned HTTP {StatusCode}. Falling back to Event Hub. OrderId={OrderId} BotId={BotId}",
+                    (int)response.StatusCode,
+                    order.Id,
+                    botId);
+                return false;
+            }
+
+            _logger.LogInformation(
+                "Direct simulator assignment succeeded. OrderId={OrderId} BotId={BotId}",
+                order.Id,
+                botId);
+
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (TaskCanceledException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (JsonException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (NotSupportedException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (UriFormatException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return LogDirectSimulatorAssignmentFailure(ex, order, botId);
+        }
+    }
+
+    private string? LogSimulatorSelectionFailure(Exception ex)
+    {
+        _logger.LogWarning(ex, "Failed to contact RobotSimulator for bot selection. Falling back to BotNetApi.");
+        return null;
+    }
+
+    private bool LogDirectSimulatorAssignmentFailure(Exception ex, Order order, string botId)
+    {
+        _logger.LogWarning(
+            ex,
+            "Failed direct simulator assignment. Falling back to Event Hub. OrderId={OrderId} BotId={BotId}",
+            order.Id,
+            botId);
+        return false;
+    }
+
+    private async Task<bool> TryPersistOrderAsync(Order order)
+    {
+        _db.Orders.Add(order);
+
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await _db.SaveChangesAsync(timeoutCts.Token);
+            return true;
+        }
+        catch (Exception ex) when (IsDevelopmentEnvironment())
+        {
+            _db.Entry(order).State = EntityState.Detached;
+            _logger.LogWarning(
+                ex,
+                "Skipping order persistence in development because the configured database is unavailable. OrderId={OrderId}",
+                order.Id);
+            return false;
+        }
+    }
+
+    private bool IsDevelopmentEnvironment() =>
+        string.Equals(_config["ASPNETCORE_ENVIRONMENT"], "Development", StringComparison.OrdinalIgnoreCase);
+
     private static OrderResponseDto ToResponseDto(Order order) => new()
     {
         Id = order.Id,
@@ -297,6 +505,14 @@ public class OrderService : IOrderService
         public string Name { get; set; } = string.Empty;
         public bool IsOnline { get; set; }
         public bool IsServicingCustomer { get; set; }
+    }
+
+    private sealed class SimulatorBotDto
+    {
+        public string BotId { get; set; } = string.Empty;
+        public string? Status { get; set; }
+        public string? ActiveOrderId { get; set; }
+        public int QueuedOrderCount { get; set; }
     }
 
     // Nominatim geocoding response shape

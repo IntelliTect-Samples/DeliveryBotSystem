@@ -7,13 +7,13 @@ variable "resource_group_name" {
 variable "container_app_environment_name" {
   description = "Existing shared Container App Environment (created by the root Iac)."
   type        = string
-  default     = "managedEnvironment-ewudeliverybots-aa2f"
+  default     = "deliverybot-dev-cae"
 }
 
 variable "acr_name" {
   description = "Existing shared Azure Container Registry the image is pulled from."
   type        = string
-  default     = "DeliverybotCR"
+  default     = "deliverybotdevcr"
 }
 
 variable "container_app_name" {
@@ -31,7 +31,7 @@ variable "image_name" {
 variable "botnet_api_url" {
   description = "Base URL of the BotNet API the Order Service calls to select a bot."
   type        = string
-  default     = "https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io"
+  default     = "https://deliverybot-botapi-dev.example.com"
 }
 
 variable "sql_connection_string" {
@@ -49,7 +49,7 @@ variable "eventhub_connection_string" {
 variable "event_hub_namespace_name" {
   description = "Event Hub namespace hosting the simulator's robot-input/robot-output hubs."
   type        = string
-  default     = "DeliverybotSimulator-EVHNS"
+  default     = "deliverybot-dev-evhns"
 }
 
 variable "status_event_hub_name" {
@@ -74,3 +74,4 @@ variable "tags" {
     issue     = "#43"
   }
 }
+

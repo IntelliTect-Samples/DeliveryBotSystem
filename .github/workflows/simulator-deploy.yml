@@ -12,14 +12,14 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ewu-deliverybotsystem-rg
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'ewu-deliverybotsystem-rg' }}
 
   # ACR — pre-created; admin credentials stored as Container App registry secret
-  ACR_NAME: DeliverybotCR
-  ACR_LOGIN_SERVER: deliverybotcr.azurecr.io
+  ACR_NAME: ${{ vars.ACR_NAME || 'DeliverybotCR' }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || 'deliverybotcr.azurecr.io' }}
 
   # Container App — pre-created with system-assigned managed identity
-  CONTAINER_APP_NAME: deliverybot-robot-simulator
+  CONTAINER_APP_NAME: ${{ vars.SIMULATOR_CONTAINER_APP_NAME || 'deliverybot-robot-simulator' }}
 
   IMAGE_NAME: deliverybot-robot-simulator
 

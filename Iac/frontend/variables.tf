@@ -1,13 +1,18 @@
 variable "resource_group_name" {
-  description = "Resource group that hosts the team's DeliveryBot resources."
+  description = "Resource group that hosts the DeliveryBot resources."
   type        = string
   default     = "ewu-deliverybotsystem-rg"
 }
 
-variable "app_service_plan_name" {
-  description = "Existing App Service Plan to reuse (shared with the Admin site)."
+variable "location" {
+  description = "Region for the shared App Service Plan and frontend app."
   type        = string
-  default     = "ASP-RGDeliveryBotdev-8b82"
+  default     = "westus2"
+}
+
+variable "app_service_plan_id" {
+  description = "Resource ID of the shared App Service Plan."
+  type        = string
 }
 
 variable "app_service_name" {

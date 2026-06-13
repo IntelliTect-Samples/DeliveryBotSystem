@@ -1,11 +1,12 @@
 # ---------------------------------------------------------------------------
-# One-time import of all pre-existing Azure resources into Terraform state.
+# Example import file for the older shared development environment.
 #
-# Import blocks MUST live in the root module — Terraform does not allow them
-# inside child modules. All addresses below are fully-qualified from root.
+# This file is intentionally not loaded by Terraform because it ends with
+# ".tf.example" instead of ".tf". Rename it only if you are importing the
+# pre-existing shared Azure resources into Terraform state.
 #
-# SAFE TO DELETE after the first successful apply that shows these resources
-# as "already imported" (no changes planned for them).
+# For the final-project resource group, leave this file as-is and
+# start with a clean state.
 # ---------------------------------------------------------------------------
 
 locals {

@@ -44,10 +44,17 @@ jobs:
       - name: Lint application
         run: npm run lint
 
+      - name: Run unit tests
+        run: npm test
+
       - name: Build application
         run: npm run build
         env:
+          VITE_API_MANAGEMENT_BASE_URL: ${{ vars.VITE_API_MANAGEMENT_BASE_URL }}
+          VITE_AGENT_API_URL: ${{ vars.VITE_AGENT_API_URL }}
           VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
+          VITE_ORDER_SERVICE_URL: ${{ vars.VITE_ORDER_SERVICE_URL }}
+          VITE_OSRM_API_URL: ${{ vars.VITE_OSRM_API_URL }}
           VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
 
       - name: Azure Login
@@ -62,5 +69,5 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         uses: azure/webapps-deploy@v3
         with:
-          app-name: WA-DeliveryBot-dev
+          app-name: ${{ vars.CUSTOMER_FRONTEND_APP_SERVICE_NAME || 'WA-DeliveryBot-dev' }}
           package: frontend/customer-webapp/dist
