@@ -201,9 +201,25 @@ public sealed class AzureOpenAiAgentService : IAgentService
         {
             await _groundingService.EnrichAsync(request, cancellationToken);
         }
-        catch (Exception error)
+        catch (AuthenticationFailedException error)
         {
-            _logger.LogWarning(error, "Failed to enrich agent request with Azure AI Search grounding.");
+            LogGroundingFailure(error);
+        }
+        catch (HttpRequestException error)
+        {
+            LogGroundingFailure(error);
+        }
+        catch (JsonException error)
+        {
+            LogGroundingFailure(error);
+        }
+        catch (NotSupportedException error)
+        {
+            LogGroundingFailure(error);
+        }
+        catch (InvalidOperationException error)
+        {
+            LogGroundingFailure(error);
         }
     }
 
@@ -235,7 +251,19 @@ public sealed class AzureOpenAiAgentService : IAgentService
                 JsonOptions,
                 cancellationToken);
         }
-        catch
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
         {
             return null;
         }
@@ -268,7 +296,19 @@ public sealed class AzureOpenAiAgentService : IAgentService
                 JsonOptions,
                 cancellationToken);
         }
-        catch
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
         {
             return null;
         }
@@ -291,9 +331,29 @@ public sealed class AzureOpenAiAgentService : IAgentService
                 },
                 cancellationToken);
         }
-        catch (Exception error)
+        catch (AuthenticationFailedException error)
         {
-            _logger.LogWarning(error, "Failed to archive agent transcript.");
+            LogArchiveFailure(error);
+        }
+        catch (HttpRequestException error)
+        {
+            LogArchiveFailure(error);
+        }
+        catch (JsonException error)
+        {
+            LogArchiveFailure(error);
+        }
+        catch (NotSupportedException error)
+        {
+            LogArchiveFailure(error);
+        }
+        catch (UriFormatException error)
+        {
+            LogArchiveFailure(error);
+        }
+        catch (InvalidOperationException error)
+        {
+            LogArchiveFailure(error);
         }
     }
 
@@ -321,11 +381,40 @@ public sealed class AzureOpenAiAgentService : IAgentService
                 },
                 cancellationToken);
         }
-        catch (Exception error)
+        catch (AuthenticationFailedException error)
         {
-            _logger.LogWarning(error, "Failed to publish support escalation.");
+            LogEscalationFailure(error);
+        }
+        catch (HttpRequestException error)
+        {
+            LogEscalationFailure(error);
+        }
+        catch (JsonException error)
+        {
+            LogEscalationFailure(error);
+        }
+        catch (NotSupportedException error)
+        {
+            LogEscalationFailure(error);
+        }
+        catch (UriFormatException error)
+        {
+            LogEscalationFailure(error);
+        }
+        catch (InvalidOperationException error)
+        {
+            LogEscalationFailure(error);
         }
     }
+
+    private void LogGroundingFailure(Exception error) =>
+        _logger.LogWarning(error, "Failed to enrich agent request with Azure AI Search grounding.");
+
+    private void LogArchiveFailure(Exception error) =>
+        _logger.LogWarning(error, "Failed to archive agent transcript.");
+
+    private void LogEscalationFailure(Exception error) =>
+        _logger.LogWarning(error, "Failed to publish support escalation.");
 
     private static string? DetermineEscalationReason(AgentChatRequestDto request)
     {

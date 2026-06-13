@@ -83,7 +83,7 @@ public sealed class AzureAiSearchGroundingService : IAgentGroundingService
 
     private async Task EnsureIndexReadyAsync(CancellationToken cancellationToken)
     {
-        if (_indexReady)
+        if (IsIndexReady())
         {
             return;
         }
@@ -92,14 +92,14 @@ public sealed class AzureAiSearchGroundingService : IAgentGroundingService
 
         try
         {
-            if (_indexReady)
+            if (IsIndexReady())
             {
                 return;
             }
 
             await CreateOrUpdateIndexAsync(cancellationToken);
             await SeedDocumentsAsync(cancellationToken);
-            _indexReady = true;
+            MarkIndexReady();
         }
         finally
         {
@@ -196,8 +196,12 @@ public sealed class AzureAiSearchGroundingService : IAgentGroundingService
             return _options.SeedDocumentsPath;
         }
 
-        return Path.Combine(AppContext.BaseDirectory, _options.SeedDocumentsPath);
+        return Path.GetFullPath(_options.SeedDocumentsPath, AppContext.BaseDirectory);
     }
+
+    private bool IsIndexReady() => System.Threading.Volatile.Read(ref _indexReady);
+
+    private void MarkIndexReady() => System.Threading.Volatile.Write(ref _indexReady, true);
 
     private Uri BuildUri(string path)
     {

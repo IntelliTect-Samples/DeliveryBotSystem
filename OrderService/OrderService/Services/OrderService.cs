@@ -149,7 +149,7 @@ public class OrderService : IOrderService
             var client = _httpClientFactory.CreateClient("Nominatim");
             var encoded = Uri.EscapeDataString(address);
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var response = await client.GetAsync(
+            using var response = await client.GetAsync(
                 $"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1",
                 timeoutCts.Token);
 
@@ -213,7 +213,7 @@ public class OrderService : IOrderService
         try
         {
             var client = _httpClientFactory.CreateClient();
-            var response = await client.GetAsync($"{simulatorUrl.TrimEnd('/')}/bots");
+            using var response = await client.GetAsync($"{simulatorUrl.TrimEnd('/')}/bots");
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
@@ -252,7 +252,7 @@ public class OrderService : IOrderService
         {
             var client = _httpClientFactory.CreateClient();
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var response = await client.GetAsync($"{botApiUrl}/api/bots", timeoutCts.Token);
+            using var response = await client.GetAsync($"{botApiUrl}/api/bots", timeoutCts.Token);
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
@@ -371,12 +371,13 @@ public class OrderService : IOrderService
 
             var client = _httpClientFactory.CreateClient();
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var response = await client.PostAsync(
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json");
+            using var response = await client.PostAsync(
                 $"{simulatorUrl.TrimEnd('/')}/orders/assignments",
-                new StringContent(
-                    JsonSerializer.Serialize(payload),
-                    Encoding.UTF8,
-                    "application/json"),
+                content,
                 timeoutCts.Token);
 
             if (!response.IsSuccessStatusCode)

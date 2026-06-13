@@ -102,7 +102,7 @@ public sealed class BlobChatTranscriptArchive : IChatTranscriptArchive
 
     private async Task EnsureContainerExistsAsync(CancellationToken cancellationToken)
     {
-        if (_containerExists)
+        if (ContainerExists())
         {
             return;
         }
@@ -111,7 +111,7 @@ public sealed class BlobChatTranscriptArchive : IChatTranscriptArchive
 
         try
         {
-            if (_containerExists)
+            if (ContainerExists())
             {
                 return;
             }
@@ -131,13 +131,17 @@ public sealed class BlobChatTranscriptArchive : IChatTranscriptArchive
                     $"Blob Storage returned HTTP {(int)response.StatusCode} while creating the transcript container: {body}");
             }
 
-            _containerExists = true;
+            MarkContainerExists();
         }
         finally
         {
             _containerLock.Release();
         }
     }
+
+    private bool ContainerExists() => System.Threading.Volatile.Read(ref _containerExists);
+
+    private void MarkContainerExists() => System.Threading.Volatile.Write(ref _containerExists, true);
 
     private async Task<HttpRequestMessage> CreateAuthorizedRequestAsync(
         HttpMethod method,

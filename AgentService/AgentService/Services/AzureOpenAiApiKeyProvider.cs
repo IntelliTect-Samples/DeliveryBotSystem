@@ -85,11 +85,25 @@ public sealed class AzureOpenAiApiKeyProvider : IAzureOpenAiApiKeyProvider
 
                 return _cachedApiKey;
             }
-            catch (Exception error)
+            catch (AuthenticationFailedException error)
             {
-                throw new InvalidOperationException(
-                    $"Azure OpenAI API key could not be loaded from Key Vault secret '{_azureOpenAiOptions.ApiKeySecretName}'. {error.Message}",
-                    error);
+                throw BuildApiKeyLoadException(error);
+            }
+            catch (HttpRequestException error)
+            {
+                throw BuildApiKeyLoadException(error);
+            }
+            catch (JsonException error)
+            {
+                throw BuildApiKeyLoadException(error);
+            }
+            catch (KeyNotFoundException error)
+            {
+                throw BuildApiKeyLoadException(error);
+            }
+            catch (InvalidOperationException error)
+            {
+                throw BuildApiKeyLoadException(error);
             }
         }
         finally
@@ -97,4 +111,9 @@ public sealed class AzureOpenAiApiKeyProvider : IAzureOpenAiApiKeyProvider
             _loadLock.Release();
         }
     }
+
+    private InvalidOperationException BuildApiKeyLoadException(Exception error) =>
+        new(
+            $"Azure OpenAI API key could not be loaded from Key Vault secret '{_azureOpenAiOptions.ApiKeySecretName}'. {error.Message}",
+            error);
 }
