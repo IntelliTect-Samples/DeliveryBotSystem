@@ -37,6 +37,7 @@ jobs:
   terraform:
     name: Terraform Plan / Apply
     runs-on: ubuntu-latest
+    environment: Development
     defaults:
       run:
         working-directory: ./Iac

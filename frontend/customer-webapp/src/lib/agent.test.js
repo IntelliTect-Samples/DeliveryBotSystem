@@ -354,6 +354,23 @@ test("sendAgentMessage falls back when the agent service returns an empty reply"
   assert.match(result.warning, /empty response/i)
 })
 
+test("sendAgentMessage falls back when the agent service times out", async () => {
+  const context = buildAgentContext(latestOrder, route)
+  const result = await sendAgentMessage("What is the eta?", context, {
+    agentApiUrl: "https://agent.example.com",
+    timeoutMs: 10,
+    fetchImpl: async (_url, options) => new Promise((_, reject) => {
+      options.signal.addEventListener("abort", () => {
+        reject(Object.assign(new Error("aborted"), { name: "AbortError" }))
+      })
+    })
+  })
+
+  assert.equal(result.source, "fallback")
+  assert.match(result.reply, /13 min/i)
+  assert.match(result.warning, /timed out/i)
+})
+
 test("sendAgentMessage gives a sensible starter reply before any order exists", async () => {
   const context = buildAgentContext(null, null)
   const result = await sendAgentMessage("What can you do?", context)

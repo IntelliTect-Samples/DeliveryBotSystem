@@ -56,6 +56,7 @@ module "order_service_app" {
   env_vars = {
     "ASPNETCORE_ENVIRONMENT"        = "Production"
     "BotNetApi__BaseUrl"            = var.botnet_api_url
+    "RobotSimulator__BaseUrl"       = var.robot_simulator_url
     "StatusConsumer__EventHubName"  = var.status_event_hub_name
     "StatusConsumer__ConsumerGroup" = azurerm_eventhub_consumer_group.order_service_status.name
   }

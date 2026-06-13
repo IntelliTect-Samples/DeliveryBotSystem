@@ -6,6 +6,7 @@ import { appConfig } from "../lib/config.js"
 import { formatOrderStatus, summarizeItems } from "../lib/orders.js"
 import { fetchRoute, formatDistance, formatDuration } from "../lib/osrm.js"
 
+const DEFAULT_SIMULATOR_TIMEOUT_MS = 8000
 const SPOKANE_CENTER = [47.6588, -117.426]
 
 const demoBots = [
@@ -73,13 +74,30 @@ export default function Home({ latestOrder, onRouteChange }) {
     message: "Place an order to calculate a route."
   })
 
+  async function fetchBotsWithTimeout() {
+    if (typeof AbortController === "undefined") {
+      return fetch(`${appConfig.simulatorApiBase}/bots`)
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), DEFAULT_SIMULATOR_TIMEOUT_MS)
+
+    try {
+      return await fetch(`${appConfig.simulatorApiBase}/bots`, {
+        signal: controller.signal
+      })
+    } finally {
+      window.clearTimeout(timer)
+    }
+  }
+
   useEffect(() => {
     let isMounted = true
     let refreshTimer = null
 
     async function loadBots() {
       try {
-        const response = await fetch(`${appConfig.simulatorApiBase}/bots`)
+        const response = await fetchBotsWithTimeout()
 
         if (!response.ok) {
           throw new Error("The simulator did not return bot data.")
@@ -95,7 +113,11 @@ export default function Home({ latestOrder, onRouteChange }) {
         }
       } catch (loadError) {
         if (isMounted) {
-          setError(loadError.message)
+          setError(
+            loadError?.name === "AbortError"
+              ? "The simulator request timed out."
+              : loadError.message
+          )
         }
       } finally {
         if (isMounted) {
@@ -308,6 +330,7 @@ function FleetMap({ bots, isDemoData, route, destination }) {
   const mapRef = useRef(null)
   const markerLayerRef = useRef(null)
   const routeLayerRef = useRef(null)
+  const lastViewportKeyRef = useRef("")
   const locatedBots = useMemo(
     () =>
       bots.filter(
@@ -317,6 +340,22 @@ function FleetMap({ bots, isDemoData, route, destination }) {
       ),
     [bots]
   )
+  const viewportKey = useMemo(() => {
+    const botIds = locatedBots
+      .map((bot) => bot.botId)
+      .sort()
+      .join("|")
+
+    const destinationKey = destination
+      ? `${destination.latitude.toFixed(4)},${destination.longitude.toFixed(4)}`
+      : "none"
+
+    const routeKey = route?.source
+      ? route.source
+      : "none"
+
+    return `${botIds}::${destinationKey}::${routeKey}`
+  }, [destination, locatedBots, route])
 
   useEffect(() => {
     if (!mapElementRef.current || mapRef.current) {
@@ -326,7 +365,7 @@ function FleetMap({ bots, isDemoData, route, destination }) {
     const map = L.map(mapElementRef.current, {
       center: SPOKANE_CENTER,
       zoom: 15,
-      minZoom: 12,
+      minZoom: 10,
       maxZoom: 19,
       scrollWheelZoom: true
     })
@@ -343,17 +382,11 @@ function FleetMap({ bots, isDemoData, route, destination }) {
     markerLayerRef.current = L.layerGroup().addTo(map)
     routeLayerRef.current = L.layerGroup().addTo(map)
 
-    const stabilizeMap = () => {
+    window.setTimeout(() => {
       window.requestAnimationFrame(() => map.invalidateSize())
-    }
-
-    window.setTimeout(stabilizeMap, 0)
-    map.on("zoomend", stabilizeMap)
-    map.on("moveend", stabilizeMap)
+    }, 0)
 
     return () => {
-      map.off("zoomend", stabilizeMap)
-      map.off("moveend", stabilizeMap)
       map.remove()
       mapRef.current = null
       markerLayerRef.current = null
@@ -374,12 +407,16 @@ function FleetMap({ bots, isDemoData, route, destination }) {
     routeLayer.clearLayers()
 
     if (locatedBots.length === 0) {
-      map.setView(SPOKANE_CENTER, 15)
+      if (lastViewportKeyRef.current !== "empty") {
+        map.setView(SPOKANE_CENTER, 15)
+        lastViewportKeyRef.current = "empty"
+      }
       return
     }
 
     locatedBots.forEach((bot) => {
-      const statusColor = getStatusColor(bot.status)
+      const effectiveStatus = getEffectiveStatus(bot)
+      const statusColor = getStatusColor(effectiveStatus)
       L.circleMarker(
         [bot.currentLocation.latitude, bot.currentLocation.longitude],
         {
@@ -391,7 +428,7 @@ function FleetMap({ bots, isDemoData, route, destination }) {
           weight: 4
         }
       )
-        .bindTooltip(`${bot.botId} - ${formatStatus(bot.status || "Unknown")}`, {
+        .bindTooltip(`${bot.botId} - ${formatStatus(effectiveStatus)}`, {
           direction: "top",
           offset: [0, -10],
           opacity: 0.95
@@ -442,10 +479,13 @@ function FleetMap({ bots, isDemoData, route, destination }) {
     }
 
     const bounds = L.latLngBounds(boundsPoints)
-    map.fitBounds(bounds.pad(0.35), {
-      maxZoom: 16
-    })
-  }, [destination, locatedBots, route])
+    if (lastViewportKeyRef.current !== viewportKey) {
+      map.fitBounds(bounds.pad(0.35), {
+        maxZoom: 16
+      })
+      lastViewportKeyRef.current = viewportKey
+    }
+  }, [destination, locatedBots, route, viewportKey])
 
   return (
     <section style={styles.mapPanel} aria-label="Robot location map">
@@ -501,7 +541,8 @@ function FleetMap({ bots, isDemoData, route, destination }) {
 }
 
 function BotCard({ bot, isDemoData, isAssigned }) {
-  const statusColor = getStatusColor(bot.status)
+  const effectiveStatus = getEffectiveStatus(bot)
+  const statusColor = getStatusColor(effectiveStatus)
   const location = bot.currentLocation
   const stockSummary = getStockSummary(bot.stock)
 
@@ -525,7 +566,7 @@ function BotCard({ bot, isDemoData, isAssigned }) {
             color: statusColor.text
           }}
         >
-          {bot.status || "Unknown"}
+          {formatStatus(effectiveStatus)}
         </span>
       </div>
 
@@ -575,8 +616,8 @@ function Detail({ label, value }) {
 
 function getFleetStats(botList) {
   const total = botList.length
-  const available = botList.filter((bot) => bot.status === "Available").length
-  const onDelivery = botList.filter((bot) => bot.status === "OnDelivery").length
+  const available = botList.filter((bot) => getEffectiveStatus(bot) === "Available").length
+  const onDelivery = botList.filter((bot) => getEffectiveStatus(bot) === "OnDelivery").length
   const averageBattery =
     total === 0
       ? 0
@@ -607,11 +648,27 @@ function getStockSummary(stock = []) {
 }
 
 function formatStatus(status) {
+  if (!status) {
+    return "Unknown"
+  }
+
   if (status === "OnDelivery") {
     return "On delivery"
   }
 
   return status
+}
+
+function getEffectiveStatus(bot) {
+  if (bot?.status) {
+    return bot.status
+  }
+
+  if (bot?.activeOrderId || Number(bot?.queuedOrderCount || 0) > 0) {
+    return "OnDelivery"
+  }
+
+  return "Available"
 }
 
 function getStatusColor(status) {

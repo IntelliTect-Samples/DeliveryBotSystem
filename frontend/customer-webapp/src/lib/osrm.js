@@ -1,5 +1,7 @@
 import { appConfig } from "./config.js"
 
+const DEFAULT_ROUTE_TIMEOUT_MS = 8000
+
 function isFiniteCoordinate(value) {
   if (value === null || value === undefined || value === "") {
     return false
@@ -110,15 +112,39 @@ export function normalizeRouteResponse(payload) {
   }
 }
 
+async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
+  if (typeof AbortController === "undefined") {
+    return fetchImpl(url, options)
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetchImpl(url, {
+      ...options,
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function fetchRoute(origin, destination, options = {}) {
   const fetchImpl = options.fetchImpl || fetch
+  const timeoutMs = options.timeoutMs || DEFAULT_ROUTE_TIMEOUT_MS
 
   if (!hasRouteEndpoints(origin, destination)) {
     throw new Error("A route requires both a robot location and a destination.")
   }
 
   try {
-    const response = await fetchImpl(buildRouteUrl(origin, destination))
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      buildRouteUrl(origin, destination),
+      undefined,
+      timeoutMs
+    )
 
     if (!response.ok) {
       throw new Error(`OSRM returned HTTP ${response.status}.`)
@@ -127,6 +153,12 @@ export async function fetchRoute(origin, destination, options = {}) {
     const data = await response.json()
     return normalizeRouteResponse(data)
   } catch (error) {
-    return buildFallbackRoute(origin, destination, error.message)
+    return buildFallbackRoute(
+      origin,
+      destination,
+      error?.name === "AbortError"
+        ? "the route service timed out"
+        : error.message
+    )
   }
 }

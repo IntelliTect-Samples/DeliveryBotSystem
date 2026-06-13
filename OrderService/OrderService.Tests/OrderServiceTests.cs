@@ -52,10 +52,13 @@ public sealed class OrderServiceTests
             ? """[{"id":1,"name":"bot-001","isOnline":true,"isServicingCustomer":false}]"""
             : "[]");
 
-    private static Dictionary<string, string?> Config(string botUrl = "http://fake-bot-api") =>
+    private static Dictionary<string, string?> Config(
+        string botUrl = "http://fake-bot-api",
+        string simulatorUrl = "") =>
         new()
         {
             ["BotNetApi:BaseUrl"] = botUrl,
+            ["RobotSimulator:BaseUrl"] = simulatorUrl,
             ["EventHub:ConnectionString"] = "",
             ["EventHub:Name"] = "robot-input"
         };
@@ -111,6 +114,106 @@ public sealed class OrderServiceTests
 
         Assert.Equal("Assigned", result.Status);
         Assert.Equal("bot-001", result.AssignedBotId);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_PrefersAvailableSimulatorBot_WhenAnotherBotIsAlreadyDelivering()
+    {
+        const string simulatorBotsJson =
+            "[" +
+            "{\"botId\":\"bot-001\",\"status\":\"OnDelivery\",\"activeOrderId\":\"existing-order\",\"queuedOrderCount\":0}," +
+            "{\"botId\":\"bot-002\",\"status\":\"Available\",\"activeOrderId\":null,\"queuedOrderCount\":0}," +
+            "{\"botId\":\"bot-003\",\"status\":\"Available\",\"activeOrderId\":null,\"queuedOrderCount\":1}" +
+            "]";
+
+        var (svc, _) = CreateService(
+            req => req.RequestUri!.AbsoluteUri.Contains("/bots")
+                ? Json(simulatorBotsJson)
+                : Json("[]"),
+            Config(botUrl: "", simulatorUrl: "http://fake-simulator"));
+
+        var result = await svc.PlaceOrderAsync(MakeOrder());
+
+        Assert.Equal("Assigned", result.Status);
+        Assert.Equal("bot-002", result.AssignedBotId);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_FallsBackToLeastLoadedSimulatorBot_WhenNoBotIsCurrentlyAvailable()
+    {
+        const string simulatorBotsJson =
+            "[" +
+            "{\"botId\":\"bot-001\",\"status\":\"OnDelivery\",\"activeOrderId\":\"existing-order\",\"queuedOrderCount\":2}," +
+            "{\"botId\":\"bot-002\",\"status\":\"OnDelivery\",\"activeOrderId\":\"other-order\",\"queuedOrderCount\":0}" +
+            "]";
+
+        var (svc, _) = CreateService(
+            req => req.RequestUri!.AbsoluteUri.Contains("/bots")
+                ? Json(simulatorBotsJson)
+                : Json("[]"),
+            Config(botUrl: "", simulatorUrl: "http://fake-simulator"));
+
+        var result = await svc.PlaceOrderAsync(MakeOrder());
+
+        Assert.Equal("Assigned", result.Status);
+        Assert.Equal("bot-002", result.AssignedBotId);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_FallsBackToBotNetApi_WhenSimulatorIsUnavailable()
+    {
+        var (svc, _) = CreateService(
+            req =>
+            {
+                if (req.RequestUri!.Host.Contains("fake-simulator"))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+                }
+
+                return DispatchByUrl(req, "[]", botAvailable: true);
+            },
+            Config(botUrl: "http://fake-bot-api", simulatorUrl: "http://fake-simulator"));
+
+        var result = await svc.PlaceOrderAsync(MakeOrder());
+
+        Assert.Equal("Assigned", result.Status);
+        Assert.Equal("bot-001", result.AssignedBotId);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_PostsAssignmentToSimulator_WhenSimulatorIsConfigured()
+    {
+        var requests = new List<HttpRequestMessage>();
+        const string simulatorBotsJson =
+            "[" +
+            "{\"botId\":\"bot-002\",\"status\":\"Available\",\"activeOrderId\":null,\"queuedOrderCount\":0}" +
+            "]";
+
+        var (svc, _) = CreateService(
+            req =>
+            {
+                requests.Add(req);
+
+                if (req.RequestUri!.AbsoluteUri.EndsWith("/bots"))
+                {
+                    return Json(simulatorBotsJson);
+                }
+
+                if (req.RequestUri.AbsoluteUri.EndsWith("/orders/assignments"))
+                {
+                    return Json("""{"result":"Accepted"}""");
+                }
+
+                return Json("[]");
+            },
+            Config(botUrl: "", simulatorUrl: "http://fake-simulator"));
+
+        var result = await svc.PlaceOrderAsync(MakeOrder());
+
+        Assert.Equal("bot-002", result.AssignedBotId);
+        Assert.Contains(requests, req =>
+            req.Method == HttpMethod.Post &&
+            req.RequestUri!.AbsoluteUri == "http://fake-simulator/orders/assignments");
     }
 
     [Fact]
