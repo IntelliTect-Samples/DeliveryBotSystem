@@ -205,6 +205,7 @@ test("submitOrder falls back cleanly when the service returns a bad status", asy
 
 test("submitOrder falls back cleanly when the service times out", async () => {
   const result = await submitOrder(mappableForm, {
+    orderServiceUrl: "https://orders.example.com",
     timeoutMs: 10,
     fetchImpl: async (_url, options) => new Promise((_, reject) => {
       options.signal.addEventListener("abort", () => {

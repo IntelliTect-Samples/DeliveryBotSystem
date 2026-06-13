@@ -176,6 +176,7 @@ async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
 export async function submitOrder(form, options = {}) {
   const fetchImpl = options.fetchImpl || fetch
   const timeoutMs = options.timeoutMs || DEFAULT_ORDER_TIMEOUT_MS
+  const orderServiceUrl = options.orderServiceUrl ?? appConfig.orderServiceUrl
   const validationErrors = validateOrderForm(form)
 
   if (Object.keys(validationErrors).length > 0) {
@@ -186,7 +187,7 @@ export async function submitOrder(form, options = {}) {
 
   const payload = toPlaceOrderRequest(form)
 
-  if (!appConfig.orderServiceUrl) {
+  if (!orderServiceUrl) {
     return {
       order: createMockOrder(form),
       source: "mock"
@@ -196,7 +197,7 @@ export async function submitOrder(form, options = {}) {
   try {
     const response = await fetchWithTimeout(
       fetchImpl,
-      `${appConfig.orderServiceUrl}/api/orders`,
+      `${orderServiceUrl}/api/orders`,
       {
         method: "POST",
         headers: {
