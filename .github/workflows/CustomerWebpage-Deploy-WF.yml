@@ -51,7 +51,7 @@ jobs:
           VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
 
       - name: Azure Login
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -59,7 +59,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: azure/webapps-deploy@v3
         with:
           app-name: WA-DeliveryBot-dev

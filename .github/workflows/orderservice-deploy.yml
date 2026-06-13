@@ -44,6 +44,7 @@ jobs:
 
       # 3. Log into Azure using OIDC (no passwords — GitHub proves its identity via token)
       - name: Azure Login (OIDC)
+        if: github.event_name != 'pull_request'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -52,9 +53,11 @@ jobs:
 
       # 4. Build and push the Docker image to the shared ACR
       - name: Log in to Azure Container Registry
+        if: github.event_name != 'pull_request'
         run: az acr login --name "$ACR_NAME"
 
       - name: Build and push Docker image
+        if: github.event_name != 'pull_request'
         run: |
           IMAGE_TAG="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${{ github.sha }}"
           echo "Building: $IMAGE_TAG"
@@ -65,6 +68,7 @@ jobs:
       # 5. Roll out the new image. Env vars/secrets are owned by Terraform, so
       #    this only updates the running image tag.
       - name: Update Container App image
+        if: github.event_name != 'pull_request'
         run: |
           az containerapp update \
             --name "$CONTAINER_APP_NAME" \
@@ -73,6 +77,7 @@ jobs:
 
       # 6. Print the live URL
       - name: Print deployment URL
+        if: github.event_name != 'pull_request'
         run: |
           FQDN=$(az containerapp show \
             --name "$CONTAINER_APP_NAME" \
