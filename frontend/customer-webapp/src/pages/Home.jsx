@@ -2,12 +2,10 @@ import { Link } from "react-router-dom"
 import { useEffect, useMemo, useRef, useState } from "react"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
+import { appConfig } from "../lib/config.js"
+import { formatOrderStatus, summarizeItems } from "../lib/orders.js"
+import { fetchRoute, formatDistance, formatDuration } from "../lib/osrm.js"
 
-const SIMULATOR_API_BASE =
-  import.meta.env.VITE_SIMULATOR_API_BASE || "/api/simulator"
-const MAP_TILE_URL =
-  import.meta.env.VITE_MAP_TILE_URL ||
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 const SPOKANE_CENTER = [47.6588, -117.426]
 
 const demoBots = [
@@ -64,18 +62,24 @@ const demoBots = [
   }
 ]
 
-export default function Home() {
+export default function Home({ latestOrder, onRouteChange }) {
   const [bots, setBots] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [route, setRoute] = useState(null)
+  const [routeState, setRouteState] = useState({
+    isLoading: false,
+    message: "Place an order to calculate a route."
+  })
 
   useEffect(() => {
     let isMounted = true
+    let refreshTimer = null
 
     async function loadBots() {
       try {
-        const response = await fetch(`${SIMULATOR_API_BASE}/bots`)
+        const response = await fetch(`${appConfig.simulatorApiBase}/bots`)
 
         if (!response.ok) {
           throw new Error("The simulator did not return bot data.")
@@ -87,10 +91,11 @@ export default function Home() {
           setBots(Array.isArray(data) ? data : [])
           setError("")
           setLastUpdated(new Date())
+          refreshTimer = window.setTimeout(loadBots, 5000)
         }
-      } catch (err) {
+      } catch (loadError) {
         if (isMounted) {
-          setError(err.message)
+          setError(loadError.message)
         }
       } finally {
         if (isMounted) {
@@ -100,47 +105,98 @@ export default function Home() {
     }
 
     loadBots()
-    const refreshTimer = window.setInterval(loadBots, 5000)
 
     return () => {
       isMounted = false
-      window.clearInterval(refreshTimer)
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer)
+      }
     }
   }, [])
 
   const displayedBots = bots.length > 0 ? bots : demoBots
   const fleetStats = useMemo(() => getFleetStats(displayedBots), [displayedBots])
   const isDemoData = bots.length === 0
+  const activeBot = useMemo(
+    () => displayedBots.find((bot) => bot.botId === latestOrder?.assignedBotId) || null,
+    [displayedBots, latestOrder]
+  )
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadRoute() {
+      if (!latestOrder?.destination) {
+        setRoute(null)
+        setRouteState({
+          isLoading: false,
+          message: latestOrder?.deliveryAddress
+            ? "This local preview can only map supported demo destinations."
+            : "Place an order to calculate a route."
+        })
+        onRouteChange?.(null)
+        return
+      }
+
+      if (!activeBot?.currentLocation) {
+        setRoute(null)
+        setRouteState({
+          isLoading: false,
+          message: latestOrder.assignedBotId
+            ? "Waiting for the assigned bot location."
+            : "The order is waiting for a bot assignment."
+        })
+        onRouteChange?.(null)
+        return
+      }
+
+      setRouteState({
+        isLoading: true,
+        message: "Calculating route."
+      })
+
+      const nextRoute = await fetchRoute(activeBot.currentLocation, latestOrder.destination)
+
+      if (!isMounted) {
+        return
+      }
+
+      setRoute(nextRoute)
+      onRouteChange?.(nextRoute)
+      setRouteState({
+        isLoading: false,
+        message: nextRoute.warning
+          ? `Showing fallback route because ${nextRoute.warning}`
+          : "Showing OSRM route."
+      })
+    }
+
+    loadRoute()
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeBot, latestOrder, onRouteChange])
 
   return (
     <div style={styles.page}>
       <div style={styles.heroCard}>
-        <h1 style={styles.title}>RoboEats Delivery</h1>
+        <h1 style={styles.title}>Track the next Spokane delivery.</h1>
 
         <p style={styles.subtitle}>
-          Fast autonomous food and beverage delivery throughout Spokane.
+          View the fleet, draw the OSRM route, and ask the delivery assistant
+          about the latest order.
         </p>
 
-        <Link to="/orders" style={styles.button}>
-          Order Now
-        </Link>
-      </div>
+        <div style={styles.heroActions}>
+          <Link to="/orders" style={styles.button}>
+            Order Now
+          </Link>
 
-      <div style={styles.cards}>
-        <InfoCard
-          title="Fast Delivery"
-          text="Autonomous robots deliver food quickly and efficiently."
-        />
-
-        <InfoCard
-          title="Live Tracking"
-          text="Track your delivery robot in real time."
-        />
-
-        <InfoCard
-          title="Local Service"
-          text="Serving restaurants, cafes, and beverage shops across Spokane."
-        />
+          <span style={styles.heroNote}>
+            {latestOrder ? `Latest order ${latestOrder.id.slice(0, 8)}` : "No active customer order yet"}
+          </span>
+        </div>
       </div>
 
       <section style={styles.fleetSection}>
@@ -177,23 +233,54 @@ export default function Home() {
           <Metric label="Average battery" value={`${fleetStats.averageBattery}%`} />
         </div>
 
-        <FleetMap bots={displayedBots} isDemoData={isDemoData} />
+        <div style={styles.routeGrid}>
+          <article style={styles.routeCard}>
+            <h3 style={styles.routeTitle}>Latest Order</h3>
+            {latestOrder ? (
+              <>
+                <RouteMetric label="Status" value={formatOrderStatus(latestOrder.status)} />
+                <RouteMetric label="Assigned Bot" value={latestOrder.assignedBotId || "Pending"} />
+                <RouteMetric label="Destination" value={latestOrder.deliveryAddress} />
+                <RouteMetric label="Items" value={summarizeItems(latestOrder.items)} />
+              </>
+            ) : (
+              <p style={styles.emptyText}>Create an order to populate the route and assistant.</p>
+            )}
+          </article>
+
+          <article style={styles.routeCard}>
+            <h3 style={styles.routeTitle}>OSRM Route</h3>
+            {route ? (
+              <>
+                <RouteMetric label="Distance" value={formatDistance(route.distanceMeters)} />
+                <RouteMetric label="ETA" value={formatDuration(route.durationSeconds)} />
+                <RouteMetric label="Source" value={route.source === "osrm" ? "OSRM" : "Fallback"} />
+                <p style={styles.routeMessage}>{routeState.message}</p>
+              </>
+            ) : (
+              <p style={styles.emptyText}>{routeState.message}</p>
+            )}
+          </article>
+        </div>
+
+        <FleetMap
+          bots={displayedBots}
+          isDemoData={isDemoData}
+          route={route}
+          destination={latestOrder?.destination}
+        />
 
         <div style={styles.botGrid}>
           {displayedBots.map((bot) => (
-            <BotCard key={bot.botId} bot={bot} isDemoData={isDemoData} />
+            <BotCard
+              key={bot.botId}
+              bot={bot}
+              isDemoData={isDemoData}
+              isAssigned={!isDemoData && bot.botId === latestOrder?.assignedBotId}
+            />
           ))}
         </div>
       </section>
-    </div>
-  )
-}
-
-function InfoCard({ title, text }) {
-  return (
-    <div style={styles.card}>
-      <h2>{title}</h2>
-      <p>{text}</p>
     </div>
   )
 }
@@ -207,12 +294,20 @@ function Metric({ label, value }) {
   )
 }
 
-function FleetMap({ bots, isDemoData }) {
+function RouteMetric({ label, value }) {
+  return (
+    <div style={styles.routeMetric}>
+      <span style={styles.routeMetricLabel}>{label}</span>
+      <strong style={styles.routeMetricValue}>{value}</strong>
+    </div>
+  )
+}
+
+function FleetMap({ bots, isDemoData, route, destination }) {
   const mapElementRef = useRef(null)
   const mapRef = useRef(null)
   const markerLayerRef = useRef(null)
-  const hasFitMapRef = useRef(false)
-  const lastBotIdsRef = useRef("")
+  const routeLayerRef = useRef(null)
   const locatedBots = useMemo(
     () =>
       bots.filter(
@@ -236,7 +331,7 @@ function FleetMap({ bots, isDemoData }) {
       scrollWheelZoom: true
     })
 
-    L.tileLayer(MAP_TILE_URL, {
+    L.tileLayer(appConfig.mapTileUrl, {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       detectRetina: true,
@@ -246,27 +341,37 @@ function FleetMap({ bots, isDemoData }) {
 
     mapRef.current = map
     markerLayerRef.current = L.layerGroup().addTo(map)
+    routeLayerRef.current = L.layerGroup().addTo(map)
 
-    window.setTimeout(() => map.invalidateSize(), 0)
+    const stabilizeMap = () => {
+      window.requestAnimationFrame(() => map.invalidateSize())
+    }
+
+    window.setTimeout(stabilizeMap, 0)
+    map.on("zoomend", stabilizeMap)
+    map.on("moveend", stabilizeMap)
 
     return () => {
+      map.off("zoomend", stabilizeMap)
+      map.off("moveend", stabilizeMap)
       map.remove()
       mapRef.current = null
       markerLayerRef.current = null
-      hasFitMapRef.current = false
-      lastBotIdsRef.current = ""
+      routeLayerRef.current = null
     }
   }, [])
 
   useEffect(() => {
     const map = mapRef.current
     const markerLayer = markerLayerRef.current
+    const routeLayer = routeLayerRef.current
 
-    if (!map || !markerLayer) {
+    if (!map || !markerLayer || !routeLayer) {
       return
     }
 
     markerLayer.clearLayers()
+    routeLayer.clearLayers()
 
     if (locatedBots.length === 0) {
       map.setView(SPOKANE_CENTER, 15)
@@ -275,7 +380,7 @@ function FleetMap({ bots, isDemoData }) {
 
     locatedBots.forEach((bot) => {
       const statusColor = getStatusColor(bot.status)
-      const marker = L.circleMarker(
+      L.circleMarker(
         [bot.currentLocation.latitude, bot.currentLocation.longitude],
         {
           radius: 10,
@@ -286,8 +391,6 @@ function FleetMap({ bots, isDemoData }) {
           weight: 4
         }
       )
-
-      marker
         .bindTooltip(`${bot.botId} - ${formatStatus(bot.status || "Unknown")}`, {
           direction: "top",
           offset: [0, -10],
@@ -296,33 +399,60 @@ function FleetMap({ bots, isDemoData }) {
         .addTo(markerLayer)
     })
 
-    const botIds = locatedBots
-      .map((bot) => bot.botId)
-      .sort()
-      .join("|")
-
-    if (!hasFitMapRef.current || lastBotIdsRef.current !== botIds) {
-      const bounds = L.latLngBounds(
-        locatedBots.map((bot) => [
-          bot.currentLocation.latitude,
-          bot.currentLocation.longitude
-        ])
-      )
-
-      map.fitBounds(bounds.pad(0.35), {
-        maxZoom: 16
+    if (destination) {
+      L.circleMarker([destination.latitude, destination.longitude], {
+        radius: 8,
+        color: "#7c2d12",
+        fillColor: "#fb923c",
+        fillOpacity: 1,
+        opacity: 1,
+        weight: 3
       })
-      hasFitMapRef.current = true
-      lastBotIdsRef.current = botIds
+        .bindTooltip("Delivery destination", {
+          direction: "top",
+          offset: [0, -10],
+          opacity: 0.95
+        })
+        .addTo(markerLayer)
     }
-  }, [locatedBots])
+
+    if (route?.coordinates?.length > 1) {
+      L.polyline(route.coordinates, {
+        color: "#fff7ed",
+        weight: 10,
+        opacity: 0.95
+      }).addTo(routeLayer)
+
+      L.polyline(route.coordinates, {
+        color: route.source === "osrm" ? "#ea580c" : "#0f766e",
+        weight: 6,
+        opacity: 1
+      }).addTo(routeLayer)
+    }
+
+    const boundsPoints = [
+      ...locatedBots.map((bot) => [
+        bot.currentLocation.latitude,
+        bot.currentLocation.longitude
+      ])
+    ]
+
+    if (route?.coordinates?.length > 0) {
+      boundsPoints.push(...route.coordinates)
+    }
+
+    const bounds = L.latLngBounds(boundsPoints)
+    map.fitBounds(bounds.pad(0.35), {
+      maxZoom: 16
+    })
+  }, [destination, locatedBots, route])
 
   return (
     <section style={styles.mapPanel} aria-label="Robot location map">
       <div style={styles.mapHeader}>
         <div>
           <p style={styles.kicker}>Fleet map</p>
-          <h3 style={styles.mapTitle}>Robot Locations</h3>
+          <h3 style={styles.mapTitle}>Robot Locations and Route</h3>
         </div>
 
         <span style={styles.mapCount}>
@@ -353,6 +483,11 @@ function FleetMap({ bots, isDemoData }) {
               </div>
             )
           })}
+
+          <div style={styles.legendItem}>
+            <span style={{ ...styles.legendDot, backgroundColor: "#ea580c" }} />
+            <span>OSRM route</span>
+          </div>
         </div>
       </div>
 
@@ -365,13 +500,18 @@ function FleetMap({ bots, isDemoData }) {
   )
 }
 
-function BotCard({ bot, isDemoData }) {
+function BotCard({ bot, isDemoData, isAssigned }) {
   const statusColor = getStatusColor(bot.status)
   const location = bot.currentLocation
   const stockSummary = getStockSummary(bot.stock)
 
   return (
-    <article style={styles.botCard}>
+    <article
+      style={{
+        ...styles.botCard,
+        ...(isAssigned ? styles.assignedBotCard : null)
+      }}
+    >
       <div style={styles.botHeader}>
         <div>
           <p style={styles.botId}>{bot.botId}</p>
@@ -418,6 +558,7 @@ function BotCard({ bot, isDemoData }) {
         </p>
       )}
 
+      {isAssigned && <p style={styles.assignedLabel}>Assigned to latest order</p>}
       {isDemoData && <p style={styles.demoLabel}>Demo preview</p>}
     </article>
   )
@@ -508,34 +649,40 @@ const styles = {
     backgroundColor: "#0f172a",
     color: "#f8fafc",
     padding: "2rem",
-    fontFamily: "Arial",
     display: "flex",
     flexDirection: "column",
     alignItems: "center"
   },
-
   heroCard: {
     backgroundColor: "#1f2937",
     padding: "3rem",
     borderRadius: "8px",
-    textAlign: "center",
-    maxWidth: "700px",
+    textAlign: "left",
+    maxWidth: "1100px",
     width: "100%",
-    marginTop: "3rem",
-    border: "1px solid #334155"
+    marginTop: "1rem",
+    border: "1px solid #334155",
+    boxSizing: "border-box"
   },
-
   title: {
-    fontSize: "clamp(2.5rem, 7vw, 4rem)",
-    marginBottom: "1rem"
+    fontSize: "clamp(2.5rem, 6vw, 4rem)",
+    marginBottom: "1rem",
+    color: "#f8fafc",
+    lineHeight: 1.1,
+    maxWidth: "20ch"
   },
-
   subtitle: {
     color: "#cbd5e1",
     fontSize: "1.1rem",
-    marginBottom: "2rem"
+    marginBottom: "1.5rem",
+    maxWidth: "44rem"
   },
-
+  heroActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "1rem",
+    alignItems: "center"
+  },
   button: {
     display: "inline-block",
     backgroundColor: "#2563eb",
@@ -545,30 +692,20 @@ const styles = {
     borderRadius: "8px",
     fontWeight: "bold"
   },
-
-  cards: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "1.5rem",
-    width: "100%",
-    maxWidth: "1100px",
-    marginTop: "3rem"
-  },
-
-  card: {
-    backgroundColor: "#1f2937",
-    padding: "2rem",
+  heroNote: {
+    color: "#cbd5e1",
+    backgroundColor: "#111827",
+    border: "1px solid #334155",
     borderRadius: "8px",
-    border: "1px solid #334155"
+    padding: "0.65rem 0.85rem",
+    fontSize: "0.9rem"
   },
-
   fleetSection: {
     width: "100%",
     maxWidth: "1100px",
-    marginTop: "3rem",
+    marginTop: "1.7rem",
     paddingBottom: "2rem"
   },
-
   sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -578,7 +715,6 @@ const styles = {
     textAlign: "left",
     flexWrap: "wrap"
   },
-
   kicker: {
     color: "#38bdf8",
     fontSize: "0.85rem",
@@ -587,13 +723,11 @@ const styles = {
     marginBottom: "0.35rem",
     textTransform: "uppercase"
   },
-
   sectionTitle: {
     color: "#f8fafc",
     fontSize: "1.75rem",
     margin: 0
   },
-
   syncStatus: {
     color: "#cbd5e1",
     backgroundColor: "#111827",
@@ -602,7 +736,6 @@ const styles = {
     padding: "0.65rem 0.85rem",
     fontSize: "0.9rem"
   },
-
   notice: {
     color: "#fde68a",
     backgroundColor: "#422006",
@@ -612,14 +745,12 @@ const styles = {
     textAlign: "left",
     marginBottom: "1rem"
   },
-
   statGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
     gap: "1rem",
     marginBottom: "1rem"
   },
-
   metric: {
     backgroundColor: "#111827",
     border: "1px solid #334155",
@@ -627,13 +758,11 @@ const styles = {
     padding: "1rem",
     textAlign: "left"
   },
-
   metricLabel: {
     color: "#94a3b8",
     display: "block",
     fontSize: "0.85rem"
   },
-
   metricValue: {
     color: "#f8fafc",
     display: "block",
@@ -641,7 +770,46 @@ const styles = {
     lineHeight: 1.2,
     marginTop: "0.3rem"
   },
-
+  routeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "1rem",
+    marginBottom: "1rem"
+  },
+  routeCard: {
+    backgroundColor: "#1f2937",
+    border: "1px solid #334155",
+    borderRadius: "8px",
+    padding: "1.25rem",
+    textAlign: "left"
+  },
+  routeTitle: {
+    margin: "0 0 1rem",
+    fontSize: "1.2rem"
+  },
+  routeMetric: {
+    display: "grid",
+    gap: "0.15rem",
+    marginBottom: "0.85rem"
+  },
+  routeMetricLabel: {
+    color: "#94a3b8",
+    fontSize: "0.82rem",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em"
+  },
+  routeMetricValue: {
+    color: "#f8fafc",
+    fontSize: "1rem"
+  },
+  emptyText: {
+    color: "#cbd5e1",
+    lineHeight: 1.5
+  },
+  routeMessage: {
+    marginTop: "0.9rem",
+    color: "#cbd5e1"
+  },
   mapPanel: {
     backgroundColor: "#f8fafc",
     border: "1px solid #cbd5e1",
@@ -651,7 +819,6 @@ const styles = {
     padding: "1rem",
     textAlign: "left"
   },
-
   mapHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -660,14 +827,12 @@ const styles = {
     marginBottom: "1rem",
     flexWrap: "wrap"
   },
-
   mapTitle: {
     color: "#0f172a",
     fontSize: "1.35rem",
     lineHeight: 1.2,
     margin: 0
   },
-
   mapCount: {
     color: "#475569",
     backgroundColor: "#e2e8f0",
@@ -677,14 +842,12 @@ const styles = {
     fontSize: "0.82rem",
     fontWeight: "bold"
   },
-
   mapShell: {
     display: "flex",
     flexDirection: "column",
     gap: "1rem",
     alignItems: "stretch"
   },
-
   mapCanvas: {
     height: "430px",
     minHeight: "360px",
@@ -693,7 +856,6 @@ const styles = {
     border: "1px solid #bfdbfe",
     backgroundColor: "#e2e8f0"
   },
-
   mapLegend: {
     display: "flex",
     flexWrap: "wrap",
@@ -701,10 +863,8 @@ const styles = {
     backgroundColor: "#f1f5f9",
     border: "1px solid #cbd5e1",
     borderRadius: "8px",
-    padding: "1rem",
-    minHeight: "auto"
+    padding: "1rem"
   },
-
   legendItem: {
     display: "flex",
     alignItems: "center",
@@ -713,26 +873,22 @@ const styles = {
     fontSize: "0.9rem",
     fontWeight: "bold"
   },
-
   legendDot: {
     width: "0.8rem",
     height: "0.8rem",
     borderRadius: "999px",
     flex: "0 0 auto"
   },
-
   mapFootnote: {
     color: "#64748b",
     fontSize: "0.85rem",
     marginTop: "0.85rem"
   },
-
   botGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
     gap: "1rem"
   },
-
   botCard: {
     backgroundColor: "#f8fafc",
     border: "1px solid #cbd5e1",
@@ -744,7 +900,9 @@ const styles = {
     boxSizing: "border-box",
     position: "relative"
   },
-
+  assignedBotCard: {
+    borderColor: "#fb923c"
+  },
   botHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -752,18 +910,15 @@ const styles = {
     gap: "0.75rem",
     marginBottom: "1rem"
   },
-
   botId: {
     fontSize: "1.15rem",
     fontWeight: "bold",
     marginBottom: "0.1rem"
   },
-
   botModel: {
     color: "#64748b",
     fontSize: "0.9rem"
   },
-
   statusBadge: {
     borderRadius: "999px",
     fontSize: "0.8rem",
@@ -771,14 +926,12 @@ const styles = {
     padding: "0.35rem 0.65rem",
     whiteSpace: "nowrap"
   },
-
   batteryRow: {
     display: "flex",
     justifyContent: "space-between",
     color: "#334155",
     marginBottom: "0.45rem"
   },
-
   batteryTrack: {
     height: "10px",
     backgroundColor: "#e2e8f0",
@@ -786,44 +939,44 @@ const styles = {
     overflow: "hidden",
     marginBottom: "1rem"
   },
-
   batteryFill: {
     height: "100%",
     backgroundColor: "#22c55e",
     borderRadius: "999px"
   },
-
   botDetails: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: "0.85rem",
-    marginBottom: "1rem"
+    marginBottom: "1.5rem"
   },
-
   detail: {
     minWidth: 0
   },
-
   detailLabel: {
     color: "#64748b",
     display: "block",
     fontSize: "0.78rem",
     marginBottom: "0.15rem"
   },
-
   detailValue: {
     color: "#0f172a",
     display: "block",
     fontSize: "0.92rem",
     overflowWrap: "anywhere"
   },
-
   location: {
     color: "#475569",
     fontFamily: "Consolas, monospace",
     fontSize: "0.85rem"
   },
-
+  assignedLabel: {
+    display: "inline-block",
+    marginTop: "0.4rem",
+    color: "#ea580c",
+    fontSize: "0.8rem",
+    fontWeight: "bold"
+  },
   demoLabel: {
     position: "absolute",
     right: "1rem",

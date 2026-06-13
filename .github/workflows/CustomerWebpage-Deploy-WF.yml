@@ -24,6 +24,7 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: Development
 
     defaults:
       run:
@@ -47,11 +48,14 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
-          VITE_SIMULATOR_API_BASE: ${{ vars.VITE_SIMULATOR_API_BASE }}
+          VITE_AGENT_API_URL: https://deliverybot-agent-service.mangocoast-332176b0.westus2.azurecontainerapps.io/api/agent
+          VITE_MAP_TILE_URL: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+          VITE_ORDER_SERVICE_URL: ${{ secrets.VITE_ORDER_SERVICE_API_BASE }}
+          VITE_OSRM_API_URL: https://router.project-osrm.org
+          VITE_SIMULATOR_API_BASE: ${{ secrets.VITE_SIMULATOR_API_BASE }}
 
       - name: Azure Login
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -59,7 +63,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         uses: azure/webapps-deploy@v3
         with:
           app-name: WA-DeliveryBot-dev
