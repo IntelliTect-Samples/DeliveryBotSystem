@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 
 function trimTrailingSlash(value) {
   return typeof value === "string" ? value.replace(/\/+$/, "") : ""
@@ -30,7 +31,7 @@ function createProxyConfig(prefix, target, fallbackTarget) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "")
+  const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), "")
   const simulatorTarget = trimTrailingSlash(env.VITE_SIMULATOR_API_BASE)
   const orderServiceTarget = trimTrailingSlash(
     env.VITE_ORDER_SERVICE_URL || env.VITE_ORDER_SERVICE_API_BASE
