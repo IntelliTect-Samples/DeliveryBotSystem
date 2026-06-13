@@ -119,5 +119,5 @@ jobs:
 
       # Apply only on merge to main — PRs stop at plan for review.
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         run: terraform apply -input=false tfplan
