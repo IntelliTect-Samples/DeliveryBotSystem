@@ -44,6 +44,7 @@ jobs:
 
       # ── 1. Authenticate to Azure via OIDC ────────────────────────────────
       - name: Azure Login (OIDC)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -56,6 +57,7 @@ jobs:
       # build and the next deploy picks it up. The connection string is a client
       # ingestion key, not a secret — masked here as good practice.
       - name: Get App Insights connection string
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         id: appinsights
         run: |
           CS=$(az resource show \
@@ -96,12 +98,14 @@ jobs:
 
       # ── 3. Deploy the build to the App Service ─────────────────────────────
       - name: Deploy to Azure App Service
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.APP_SERVICE_NAME }}
           package: ./admin-webapp/dist
 
       - name: Print deployment URL
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         run: |
           FQDN=$(az webapp show \
             --name "$APP_SERVICE_NAME" \
