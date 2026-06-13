@@ -33,7 +33,6 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: Development
     steps:
       # 1. Check out the code
       - name: Checkout repository

@@ -46,7 +46,6 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     needs: test
-    environment: Development
     steps:
       # ── 1. Checkout source code ───────────────────────────────────────────────
       - name: Checkout repository
