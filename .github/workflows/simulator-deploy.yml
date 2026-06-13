@@ -2,7 +2,7 @@ name: Build and Deploy Robot Simulator
 
 on:
   push:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "RobotSimulator/**"
 
@@ -12,14 +12,14 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'deliverybot-final-rg' }}
 
   # ACR — pre-created; admin credentials stored as Container App registry secret
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  ACR_NAME: ${{ vars.ACR_NAME || 'deliverybotfinalcr' }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || 'deliverybotfinalcr.azurecr.io' }}
 
   # Container App — pre-created with system-assigned managed identity
-  CONTAINER_APP_NAME: ${{ vars.SIMULATOR_CONTAINER_APP_NAME }}
+  CONTAINER_APP_NAME: ${{ vars.SIMULATOR_CONTAINER_APP_NAME || 'deliverybot-simulator-final' }}
 
   IMAGE_NAME: deliverybot-robot-simulator
 

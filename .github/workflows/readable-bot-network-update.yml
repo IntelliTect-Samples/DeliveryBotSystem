@@ -5,7 +5,7 @@ name: Update Readable Bot Network
 
 on:
   push:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "ReadBotsFunction/**"
       - "ReadableBotState/**"
@@ -30,12 +30,12 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
-  FUNCTION_APP_NAME: ${{ vars.READABLE_BOT_NETWORK_FUNCTION_APP_NAME }}
-  COSMOS_ACCOUNT_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_ACCOUNT_NAME }}
-  COSMOS_DATABASE_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_DATABASE_NAME }}
-  BOTS_CONTAINER_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_CONTAINER_NAME }}
-  DIAGNOSTICS_CONTAINER_NAME: ${{ vars.READABLE_BOT_NETWORK_DIAGNOSTICS_CONTAINER_NAME }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'deliverybot-final-rg' }}
+  FUNCTION_APP_NAME: ${{ vars.READABLE_BOT_NETWORK_FUNCTION_APP_NAME || 'deliverybot-final-rbnr-func' }}
+  COSMOS_ACCOUNT_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_ACCOUNT_NAME || 'deliverybot-final-rbnr-cosmos' }}
+  COSMOS_DATABASE_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_DATABASE_NAME || 'bot-network' }}
+  BOTS_CONTAINER_NAME: ${{ vars.READABLE_BOT_NETWORK_COSMOS_CONTAINER_NAME || 'bots' }}
+  DIAGNOSTICS_CONTAINER_NAME: ${{ vars.READABLE_BOT_NETWORK_DIAGNOSTICS_CONTAINER_NAME || 'function-diagnostics' }}
 
 jobs:
   update-cosmos:

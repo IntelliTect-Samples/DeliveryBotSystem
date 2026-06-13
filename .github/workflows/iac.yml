@@ -14,12 +14,12 @@ name: Infrastructure — Apply All Services
 
 on:
   push:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "Iac/**"
       - ".github/workflows/iac.yml"
   pull_request:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "Iac/**"
       - ".github/workflows/iac.yml"
@@ -30,9 +30,9 @@ permissions:
   contents: read
 
 env:
-  TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
-  TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
-  TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
+  TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP || 'deliverybot-final-rg' }}
+  TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT || 'dbstfstate01' }}
+  TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER || 'tfstate' }}
   TFSTATE_KEY: ${{ vars.TFSTATE_KEY || 'deliverybot-final.tfstate' }}
 
 jobs:
@@ -129,7 +129,6 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
 
-      # Apply only on merge to main — PRs stop at plan for review.
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/kernw-project'))
         run: terraform apply -input=false tfplan

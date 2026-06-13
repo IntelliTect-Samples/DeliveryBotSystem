@@ -7,12 +7,12 @@ name: Build and Deploy Order Service
 
 on:
   push:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "OrderService/**"
       - ".github/workflows/orderservice-deploy.yml"
   pull_request:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "OrderService/**"
       - ".github/workflows/orderservice-deploy.yml"
@@ -24,10 +24,10 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  CONTAINER_APP_NAME: ${{ vars.ORDER_SERVICE_CONTAINER_APP_NAME }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'deliverybot-final-rg' }}
+  ACR_NAME: ${{ vars.ACR_NAME || 'deliverybotfinalcr' }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || 'deliverybotfinalcr.azurecr.io' }}
+  CONTAINER_APP_NAME: ${{ vars.ORDER_SERVICE_CONTAINER_APP_NAME || 'deliverybot-orders-final' }}
   IMAGE_NAME: orderservice
 
 jobs:

@@ -7,12 +7,12 @@ name: AdminWebpage-Deploy-WF
 on:
   workflow_dispatch:
   pull_request:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "admin-webapp/**"
       - ".github/workflows/AdminWebpage-Deploy-WF.yml"
   push:
-    branches: [main]
+    branches: [main, kernw-project]
     paths:
       - "admin-webapp/**"
       - ".github/workflows/AdminWebpage-Deploy-WF.yml"
@@ -22,8 +22,8 @@ permissions:
   contents: read
 
 env:
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
-  APP_SERVICE_NAME: ${{ vars.ADMIN_APP_SERVICE_NAME }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME || 'deliverybot-final-rg' }}
+  APP_SERVICE_NAME: ${{ vars.ADMIN_APP_SERVICE_NAME || 'wa-deliverybot-admin-final' }}
   BOTNET_API_URL: ${{ vars.VITE_BOTNET_API_URL }}
   SIMULATOR_API_URL: ${{ vars.VITE_SIMULATOR_API_URL }}
   ORDER_SERVICE_URL: ${{ vars.VITE_ORDER_SERVICE_URL }}
