@@ -59,6 +59,7 @@ module "order_service" {
   sql_connection_string          = var.order_service_sql_connection_string
   eventhub_connection_string     = var.eventhub_connection_string
   botnet_api_url                 = var.botnet_api_url
+  robot_simulator_url            = var.simulator_api_url
 }
 
 # ── Bot API ────────────────────────────────────────────────────────────────────

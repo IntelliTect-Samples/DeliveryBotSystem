@@ -4,10 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1",
+    "dev:web": "vite",
+    "dev:agent": "dotnet run --project ../../AgentService/AgentService/AgentService.csproj",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

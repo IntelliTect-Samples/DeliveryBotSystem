@@ -34,6 +34,12 @@ variable "botnet_api_url" {
   default     = "https://ewu-deliverybotsystem-api.mangocoast-332176b0.westus2.azurecontainerapps.io"
 }
 
+variable "robot_simulator_url" {
+  description = "Base URL of the Robot Simulator the Order Service calls for direct assignment and live bot selection."
+  type        = string
+  default     = "https://deliverybot-robot-simulator.mangocoast-332176b0.westus2.azurecontainerapps.io"
+}
+
 variable "sql_connection_string" {
   description = "Connection string for OrderServiceDb. Uses Managed Identity auth — passed in from the CD pipeline, never committed."
   type        = string

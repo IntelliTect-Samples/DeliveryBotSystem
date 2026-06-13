@@ -1,14 +1,26 @@
+import { useEffect, useState } from "react"
 import {
   BrowserRouter,
-  Routes,
+  Link,
   Route,
-  Link
+  Routes
 } from "react-router-dom"
-
-import Home from "./pages/Home"
-import CreateOrder from "./pages/CreateOrder"
+import AgentAssistant from "./components/AgentAssistant.jsx"
+import { readLatestOrder, subscribeToLatestOrder, writeLatestOrder } from "./lib/orderSession.js"
+import Home from "./pages/Home.jsx"
+import CreateOrder from "./pages/CreateOrder.jsx"
 
 function App() {
+  const [latestOrder, setLatestOrder] = useState(() => readLatestOrder())
+  const [latestRoute, setLatestRoute] = useState(null)
+
+  useEffect(() => subscribeToLatestOrder(setLatestOrder), [])
+
+  function handleOrderCreated(order) {
+    writeLatestOrder(order)
+    setLatestOrder(order)
+  }
+
   return (
     <BrowserRouter>
       <div style={styles.page}>
@@ -27,13 +39,17 @@ function App() {
         </nav>
 
         <Routes>
-          <Route path="/" element={<Home />} />
-
+          <Route
+            path="/"
+            element={<Home latestOrder={latestOrder} onRouteChange={setLatestRoute} />}
+          />
           <Route
             path="/orders"
-            element={<CreateOrder />}
+            element={<CreateOrder onOrderCreated={handleOrderCreated} />}
           />
         </Routes>
+
+        <AgentAssistant latestOrder={latestOrder} route={latestRoute} />
       </div>
     </BrowserRouter>
   )
@@ -44,21 +60,20 @@ const styles = {
     backgroundColor: "#111827",
     minHeight: "100vh"
   },
-
   nav: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     padding: "1.5rem 2rem",
     backgroundColor: "#0f172a",
-    color: "white"
+    color: "white",
+    gap: "1rem",
+    flexWrap: "wrap"
   },
-
   links: {
     display: "flex",
     gap: "1rem"
   },
-
   link: {
     color: "white",
     textDecoration: "none"
