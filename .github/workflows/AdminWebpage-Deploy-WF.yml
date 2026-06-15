@@ -50,7 +50,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ── 2. Build the SPA with upstream URLs baked in ──────────────────────
+      # ── 2. Fetch the App Insights connection string (Azure Monitor) ───────
+      # The resource is provisioned by the IaC workflow (iac.yml). This read is
+      # tolerant: if it doesn't exist yet, telemetry is simply disabled in the
+      # build and the next deploy picks it up. The connection string is a client
+      # ingestion key, not a secret — masked here as good practice.
+      - name: Get App Insights connection string
+        id: appinsights
+        run: |
+          CS=$(az resource show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name appi-deliverybot-admin \
+            --resource-type microsoft.insights/components \
+            --query properties.ConnectionString -o tsv 2>/dev/null || true)
+          if [ -n "$CS" ]; then echo "::add-mask::$CS"; fi
+          echo "connection_string=$CS" >> "$GITHUB_OUTPUT"
+
+      # ── 3. Build the SPA with upstream URLs baked in ──────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -75,6 +91,7 @@ jobs:
           VITE_ENTRA_CLIENT_ID: ${{ env.ENTRA_CLIENT_ID }}
           VITE_ENTRA_TENANT_ID: ${{ env.ENTRA_TENANT_ID }}
           VITE_ENTRA_ADMIN_GROUP_ID: ${{ env.ENTRA_ADMIN_GROUP_ID }}
+          VITE_APPINSIGHTS_CONNECTION_STRING: ${{ steps.appinsights.outputs.connection_string }}
         run: npm run build
 
       # ── 3. Deploy the build to the App Service ─────────────────────────────

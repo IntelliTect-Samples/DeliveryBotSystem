@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  listBots,
+  listBotsWithTelemetry,
   registerBot,
   modifyBot,
   removeBot,
@@ -9,6 +9,7 @@ import {
   simulatorConfig,
 } from '../api/admin.js'
 import { apiConfig as botnetConfig } from '../api/bots.js'
+import { trackEvent } from '../telemetry/appInsights.js'
 import BotDialog from '../components/BotDialog.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 
@@ -30,16 +31,23 @@ export default function BotsPage() {
   const [loading, setLoading] = useState(true)
   const [source, setSource] = useState('mock')
   const [busyId, setBusyId] = useState(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [simReachable, setSimReachable] = useState(false)
 
   const [dialog, setDialog] = useState({ open: false, mode: 'create', bot: null })
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [banner, setBanner] = useState(null)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    const { data, source } = await listBots()
+  // Pull the BotNet registry + live simulator telemetry. `quiet` skips the
+  // loading flag so the auto-refresh poll doesn't flicker the table.
+  const refresh = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true)
+    const { data, source, simulatorReachable } = await listBotsWithTelemetry()
     setBots(Array.isArray(data) ? data : [])
     setSource(source)
+    setSimReachable(simulatorReachable)
+    setLastUpdated(new Date())
     setLoading(false)
   }, [])
 
@@ -47,10 +55,23 @@ export default function BotsPage() {
     refresh()
   }, [refresh])
 
+  // Live monitoring: poll every 5s while auto-refresh is on, but pause during
+  // edits / deletes / in-flight actions so we don't disrupt the operator.
+  useEffect(() => {
+    if (!autoRefresh) return undefined
+    const id = setInterval(() => {
+      if (!dialog.open && !deleteTarget && busyId === null) {
+        refresh(true)
+      }
+    }, 5000)
+    return () => clearInterval(id)
+  }, [autoRefresh, refresh, dialog.open, deleteTarget, busyId])
+
   // #51 Quick-action: recharge (double-writes battery=100 to BotNet + simulator)
   async function onRecharge(bot) {
     setBusyId(bot.id)
     const result = await rechargeBot(bot.id, bot.name)
+    trackEvent('BotRecharged', { botId: bot.id, botName: bot.name })
     const sim = result?.simulator
     if (!result?.botnet?.error && sim && !sim.ok && !sim.skipped) {
       setBanner({
@@ -67,7 +88,9 @@ export default function BotsPage() {
   // #51 Quick-action: toggle servicing status (BotNet-only — see admin.js)
   async function onToggleServicing(bot) {
     setBusyId(bot.id)
-    await setServicingStatus(bot.id, !bot.isServicingCustomer)
+    const nextActive = !bot.isServicingCustomer
+    await setServicingStatus(bot.id, nextActive)
+    trackEvent('BotServicingToggled', { botId: bot.id, active: nextActive })
     await refresh()
     setBusyId(null)
   }
@@ -76,6 +99,7 @@ export default function BotsPage() {
   async function handleCreate(values) {
     const result = await registerBot(values)
     if (!result?.botnet?.error) {
+      trackEvent('BotCreated', { botName: values.name })
       const sim = result?.simulator
       if (sim && !sim.ok && !sim.skipped) {
         setBanner({
@@ -95,6 +119,7 @@ export default function BotsPage() {
     const id = dialog.bot.id
     const result = await modifyBot(id, values.name, values)
     if (!result?.botnet?.error) {
+      trackEvent('BotUpdated', { botId: id, botName: values.name })
       const sim = result?.simulator
       if (sim && !sim.ok && !sim.skipped) {
         setBanner({
@@ -114,6 +139,7 @@ export default function BotsPage() {
     if (!deleteTarget) return { botnet: { error: 'no target' } }
     const result = await removeBot(deleteTarget.id, deleteTarget.name)
     if (!result?.botnet?.error) {
+      trackEvent('BotDeleted', { botId: deleteTarget.id, botName: deleteTarget.name })
       const sim = result?.simulator
       if (sim && !sim.ok && !sim.skipped) {
         setBanner({
@@ -138,6 +164,12 @@ export default function BotsPage() {
           </p>
         </div>
         <div style={styles.headerRight}>
+          <LiveControl
+            autoRefresh={autoRefresh}
+            lastUpdated={lastUpdated}
+            simReachable={simReachable}
+            onToggle={() => setAutoRefresh((v) => !v)}
+          />
           <DataSourceBadge source={source} botnet={botnetConfig} sim={simulatorConfig} />
           <button
             style={styles.primaryBtn}
@@ -145,7 +177,7 @@ export default function BotsPage() {
           >
             + New Bot
           </button>
-          <button style={styles.secondaryBtn} onClick={refresh} disabled={loading}>
+          <button style={styles.secondaryBtn} onClick={() => refresh()} disabled={loading}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
@@ -174,6 +206,7 @@ export default function BotsPage() {
               <th style={styles.th}>Battery</th>
               <th style={styles.th}>Status</th>
               <th style={styles.th}>Servicing Customer</th>
+              <th style={styles.th}>Live Telemetry</th>
               <th style={styles.th}>Last Updated</th>
               <th style={styles.th}>Actions</th>
             </tr>
@@ -181,12 +214,12 @@ export default function BotsPage() {
           <tbody>
             {loading && bots.length === 0 && (
               <tr>
-                <td style={styles.td} colSpan={7}>Loading bots…</td>
+                <td style={styles.td} colSpan={8}>Loading bots…</td>
               </tr>
             )}
             {!loading && bots.length === 0 && (
               <tr>
-                <td style={styles.td} colSpan={7}>
+                <td style={styles.td} colSpan={8}>
                   No bots registered. Click <strong>+ New Bot</strong> to add one.
                 </td>
               </tr>
@@ -209,6 +242,9 @@ export default function BotsPage() {
                     okLabel="Active"
                     offLabel="Idle"
                   />
+                </td>
+                <td style={styles.td}>
+                  <Telemetry telemetry={bot.telemetry} simReachable={simReachable} />
                 </td>
                 <td style={styles.td}>{formatTime(bot.lastUpdated)}</td>
                 <td style={styles.td}>
@@ -333,6 +369,63 @@ function StatusPill({ ok, okLabel, offLabel }) {
   )
 }
 
+// Live monitoring indicator + pause/resume control.
+function LiveControl({ autoRefresh, lastUpdated, simReachable, onToggle }) {
+  const timeStr = lastUpdated
+    ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '—'
+  const dotColor = !autoRefresh ? 'var(--text-dim)' : simReachable ? 'var(--ok)' : 'var(--warn)'
+  const label = !autoRefresh ? 'Paused' : simReachable ? 'Live' : 'Live (no telemetry)'
+  const glow = dotColor === 'var(--ok)' ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'
+  return (
+    <div style={styles.liveControl}>
+      <span
+        style={{
+          ...styles.liveDot,
+          background: dotColor,
+          boxShadow: autoRefresh ? `0 0 0 3px ${glow}` : 'none',
+        }}
+      />
+      <span style={styles.liveText}>
+        {label}
+        <span style={{ color: 'var(--text-dim)', marginLeft: '0.35rem' }}>· {timeStr}</span>
+      </span>
+      <button style={styles.liveBtn} onClick={onToggle}>
+        {autoRefresh ? 'Pause' : 'Resume'}
+      </button>
+    </div>
+  )
+}
+
+// Simulator BotStatus enum (Core/Bots): 0 = Available, 1 = OnDelivery.
+function simStatusLabel(status) {
+  if (status === 0) return 'Available'
+  if (status === 1) return 'On delivery'
+  return status == null ? '' : String(status)
+}
+
+// Live runtime telemetry from the simulator for one bot.
+function Telemetry({ telemetry, simReachable }) {
+  if (!telemetry) {
+    return (
+      <span style={{ color: simReachable ? 'var(--warn)' : 'var(--text-dim)', fontSize: '0.85rem' }}>
+        ● {simReachable ? 'no signal' : 'offline'}
+      </span>
+    )
+  }
+  const power =
+    typeof telemetry.powerLevel === 'number' ? `${telemetry.powerLevel.toFixed(1)}%` : '—'
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+      <span style={{ ...styles.liveDot, background: 'var(--ok)' }} />
+      <span style={{ fontWeight: 600, color: batteryColor(telemetry.powerLevel) }}>{power}</span>
+      <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
+        {simStatusLabel(telemetry.status)}
+      </span>
+    </span>
+  )
+}
+
 const styles = {
   section: { padding: '0 2rem 2rem' },
   header: {
@@ -437,6 +530,31 @@ const styles = {
     border: '1px solid',
     borderRadius: '999px',
     fontSize: '0.8rem',
+  },
+  liveControl: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.3rem 0.6rem',
+    border: '1px solid var(--border)',
+    borderRadius: '999px',
+    background: 'var(--bg-elev)',
+  },
+  liveDot: {
+    width: '0.6rem',
+    height: '0.6rem',
+    borderRadius: '50%',
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  liveText: { fontSize: '0.82rem', fontWeight: 500 },
+  liveBtn: {
+    background: 'transparent',
+    color: 'var(--text-dim)',
+    border: '1px solid var(--border)',
+    padding: '0.2rem 0.55rem',
+    borderRadius: '6px',
+    fontSize: '0.78rem',
   },
   footer: {
     marginTop: '1rem',

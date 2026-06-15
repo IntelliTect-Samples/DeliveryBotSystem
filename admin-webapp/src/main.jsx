@@ -6,6 +6,10 @@ import './index.css'
 import App from './App.jsx'
 import { authEnabled } from './auth/authConfig.js'
 import { msalInstance } from './auth/msalInstance.js'
+import { initTelemetry } from './telemetry/appInsights.js'
+
+// Azure Monitor: start client telemetry (no-op when not configured).
+initTelemetry()
 
 const root = createRoot(document.getElementById('root'))
 
